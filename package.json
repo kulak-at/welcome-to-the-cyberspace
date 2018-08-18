@@ -1,0 +1,19 @@
+{
+  "name": "game",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "git@gitlab.com:kulak.technology/13kGames.git",
+  "author": "Kacper Kula <kulak@kulak.at>",
+  "license": "MIT",
+  "devDependencies": {
+    "webpack": "^4.16.5",
+    "webpack-cli": "^3.1.0"
+  },
+  "scripts": {
+    "build": "webpack --mode development",
+    "start": "webpack --watch --mode development"
+  },
+  "dependencies": {
+    "webpack-dev-server": "^3.1.5"
+  }
+}
