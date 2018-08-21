@@ -10,9 +10,8 @@ let fixSize = 2;
 let D = 100032.4524;
 let E = 3.3262;
 
-let playerShieldOn = false;
 
-const FRAME_LENGTH = 200;
+const FRAME_LENGTH = 150;
 let startTime = +(new Date());
 let nextFrame = startTime + FRAME_LENGTH;
 
@@ -38,13 +37,18 @@ class Bot {
         this.x = x;
         this.y = y;
         this.a = [0,0];
+        this.d = [0, 1];
     }
 
     render(r) {
-        console.log(r);
+        let a = this.pos(r);
+        return convertToDraw(ROBOT_SCHEME, a.x, a.y);
+    }
+
+    pos(r) {
         let dx = (r)*this.a[0];
         let dy = (r)*this.a[1];
-        return convertToDraw(ROBOT_SCHEME, this.x - dx, this.y - dy);
+        return {x: this.x  - dx, y: this.y - dy}
     }
 
     update() {
@@ -66,10 +70,72 @@ class Bot {
                 this.x += a[0];
                 this.y += a[1];
                 this.a = a;
+                this.d = a;
             }
         }
+
+        if (Math.random() > 0.7) {
+            this.fire();
+        }
+    }
+
+    fire() {
+        bullets.push(new Bullet(this.x, this.y, this.d));
     }
 }
+
+class Player extends Bot {
+    constructor(x, y) {
+        super(x, y);
+        this._nextA = [0, 0];
+        this.isShieldActive = false;
+    }
+    render(r) {
+        let a = this.pos(r);
+        convertToDraw(ROBOT_SCHEME, a.x, a.y);
+        if (this.isShieldActive) {
+            console.log('SHIELD');
+            convertToDraw(SHIELD, a.x, a.y)
+        }
+    }
+    update() {
+        this.x += this._nextA[0];
+        this.y += this._nextA[1];
+        this.a = this._nextA;
+
+        if (this._nextA[0] + this._nextA[1] !== 0) {
+            this.d = this._nextA;
+        }
+        this._nextA = [0, 0];
+    }
+    move(x,y) {
+        if (isTile(this.x+x, this.y+y)) {
+            this._nextA = [x, y];
+            return true;
+        }
+
+        return false;
+    }
+}
+window.c = c;
+window.gP = getPosition;
+
+class Camera {
+    constructor(player) {
+        this.p = player;
+        this._c = [0, 0];
+    }
+    render(r) {
+        c.translate(-this._c[0], -this._c[1]);
+        let q = getPosition(this.p.pos(r).x, this.p.pos(r).y); // fixme: probably optimize
+        console.log('Q');
+        this._c = [-q[0], -q[1]]
+        c.translate.apply(c, this._c);
+    }
+}
+
+let player = new Player(0, 0);
+let camera = new Camera(player);
 
 const BULLET_LIFETIME = 5;
 const BULLET_SPEED = 2;
@@ -263,6 +329,10 @@ const ROBOT_SCHEME = [
     [0.2, 0.4, darken(RC, 0.2), 0.1, 0.3, 0.1, 0.6, true],
     [0.2, 0.3, [20, 20, 20], 0.1, 0.1, 0.1, 0.6, true],
     [0.2, 0.6, darken(RC, 0.2), 0.1, 0.1, 0.2, 0.7, true]
+];
+
+const SHIELD = [
+    [0.3, 0.2, [50, 50, 200, 0.5], 0.8, 0.01, 0.8, 1.1]
 ]
 
 function drawRobot(x, y) {
@@ -316,32 +386,22 @@ grd2.addColorStop(0, 'rgba(28, 206,52, 0.5)');
 grd2.addColorStop(1, 'rgba(226, 217,3, 0.5)');
 
 function drawMap() {
-    for(let i=player[0]-20;i<player[0]+20;i++) {
-        for(let j=player[1]-20;j<player[1]+20;j++) {
+    for(let i=player.x-20;i<player.x+20;i++) {
+        for(let j=player.y-20;j<player.y+20;j++) {
             if (isTile(i,j)) {
                 drawBox(i,j,[50, 50, 50, 0.8], 1, 1, 0.2, 0, false, grd2);
             }
         }
     }
 }
-let player = [0, 0];
 
-function drawPlayer() {
-
-    // drawRobot(player[0]-2, player[1]);
-    // drawRobot(player[0]-1, player[1]);
-    drawRobot(player[0], player[1]);
-    if (playerShieldOn) {
-        drawBox(player[0] - 0.3, player[1]-0.1, [80,80,200, 0.5], 0.8, 0.05, 0.8, 1.2);
-    }
-    // drawRobot(player[0]+1, player[1]);
-    // drawRobot(player[0]+2, player[1]);
-    // drawRectangle(player[0], player[1], 'green', 2, 2);
+function drawPlayer(r) {
+    player.render(r); // FIXME: move shield rendering to class
 }
 
-function drawBackground() {
+function drawBackground(r) {
     c.fillStyle=grd;
-    const sm = getPosition(player[0], player[1], -CW/2, -CH/2);
+    const sm = getPosition(player.pos(r).x, player.pos(r).y, -CW/2, -CH/2);
     c.fillRect(sm[0], sm[1], CW, CH);
 }
 
@@ -359,6 +419,7 @@ function recomputeFrame() {
         // updating all
         bots.map(b => b.update());
         bullets.map(b => b.update());
+        player.update();
         nextFrame = now + FRAME_LENGTH;
         // FIXME: collision detection probably.
     }
@@ -370,11 +431,12 @@ function recomputeFrame() {
 function draw() {
     const currentFrameMoment = recomputeFrame();
     clear();
-    drawBackground();
+    camera.render(currentFrameMoment);
+    drawBackground(currentFrameMoment);
     drawMap();
     drawEnemies(currentFrameMoment);
     drawBullets(currentFrameMoment);
-    drawPlayer();
+    drawPlayer(currentFrameMoment);
     // drawRobot(0, 0);
 
     requestAnimationFrame(draw);
@@ -384,43 +446,31 @@ draw();
 
 document.addEventListener('keyup', function(e) {
     if (e.key === 'z') {
-        playerShieldOn = false;
+        player.isShieldActive = false;
     }
 });
 
 document.addEventListener('keydown', function(e) {
-    console.log(e.key);
+    let a = [0, 0];
     switch(e.key) {
         case 'ArrowDown':
-            if (isTile(player[0], player[1] + 1)) {
-                player[1]++;
-                c.translate(s, -s/2)
-            }
+            player.move(0,1)
             break;
         case 'ArrowUp':
-            if (isTile(player[0], player[1] - 1)) {   
-                player[1]--;
-                c.translate(-s, s/2)
-            }
+            player.move(0, -1)
             break;
         case 'ArrowLeft':
-            if (isTile(player[0] - 1, player[1])) {   
-                player[0]--;
-                c.translate(s, s/2);
-            }
+            player.move(-1, 0)
             break;
         case 'ArrowRight':
-            if (isTile(player[0] + 1, player[1])) {
-                player[0]++;
-                c.translate(-s, -s/2);
-            }
+            player.move(1, 0)
             break;
         case 'X':
         case 'x':
-            bullets.push(new Bullet(player[0], player[1], [0, 1]));
+            player.fire();
             break;
         case 'z':
-            playerShieldOn = true;
+            player.isShieldActive = true;
             break;
         case '+':
             changeScale(s+10);
