@@ -195,6 +195,108 @@ class Bullet {
     }
 }
 
+const BAR_TIME = 0.25;
+
+class Music {
+    constructor(loop) {
+        var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        var oscillator = audioCtx.createOscillator();
+        oscillator.type = 'square';
+
+        this.o = oscillator;
+        this.a = audioCtx;
+
+        this.l = loop;
+        this.lastT = null;
+
+        oscillator.connect(audioCtx.destination);
+        oscillator.start();
+    }
+
+    start() {
+
+        if (!this.lastT) {
+            this.lastT = this.a.currentTime;
+        }
+
+        let t = this.lastT;
+
+        this.l.map((l) => {
+            let d = l[0]*BAR_TIME / 4;
+            this.o.frequency.setValueAtTime(l[1]*window.Z, t); // value in hertz
+            t+=d;
+        });
+        this.lastT = t;
+
+        const n = this.lastT - this.a.currentTime;
+        console.log('DIFF', n);
+        setTimeout(() =>{
+            this.start();
+        }, 1000 * n*0.95);
+        // if (this.lastT - n > 0.1) {
+        //     this.start();
+        // } else {
+        //     setTimeout(() => {
+        //         this.start();
+        //     }, 100);
+        // }
+    }
+}
+
+window.Z = 1;
+
+const bass = (hz) => {
+    const x=[];
+    for(var i=0;i<8;i++) {
+        x.push([2, hz])
+        x.push([2, -1]);
+    }
+    return x;
+}
+
+const mus = new Music([].concat(bass(440/4), bass(400/4), bass(470/4), bass(440/4)));
+mus.start();
+
+// const mus = new Music([
+//     [2, 440],
+//     [2, -1],
+//     [2, 440],
+//     [2, -1],
+//     [2, 490],
+//     [2, -1],
+//     [2, 490],
+//     [2, -1],
+//     [2, 440],
+//     [2, -1],
+//     [2, 440],
+//     [2, -1],
+//     [2, 450],
+//     [2, -1],
+//     [2, 450],
+//     [2, -1],
+// ]);
+// mus.start();
+
+// const mus2 = new Music([
+//     [2, -1],
+//     [2, 2*440],
+//     [2, -1],
+//     [2, 2*490],
+//     [2, -1],
+//     [2, 2*490],
+//     [2, -1],
+//     [2, 2*440],
+//     [2, -1],
+//     [2, 2*440],
+//     [2, -1],
+//     [2, 2*450],
+//     [2, -1],
+//     [2, 2*450],
+//     [2, -1],
+//     [2, 2*440],
+// ])
+// mus2.start();
+
 function isOccupied(x, y) {
     return false;
 
@@ -220,10 +322,12 @@ function changeScale(newS) {
 }
 const ALPHA = 0.2;
 
+window.S = 2;
+
 function getPosition(x, y, dx=0, dy=0) {
     return [
         (x - y)*s + dx,
-        (x + y)*s/2 + dy
+        (x + y)*s/window.S + dy
     ]
 }
 
@@ -637,4 +741,10 @@ document.addEventListener('keydown', function(e) {
         case '-':
         changeScale(s-10);
     }
+})
+
+window.addEventListener('mousemove', function(e) {
+    const ratio = ((e.clientY / window.document.body.offsetHeight) - 0.5) * 2;
+    console.log(ratio);
+    window.S = 2 + ratio * 5;
 })
