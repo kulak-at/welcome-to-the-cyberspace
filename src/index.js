@@ -42,7 +42,36 @@ class Bot {
 
     render(r) {
         let a = this.pos(r);
-        return convertToDraw(ROBOT_SCHEME, a.x, a.y);
+        // return convertToDraw(ROBOT_SCHEME, a.x, a.y);
+        let scheme = ROBOT_SCHEME_NEW.slice();
+
+        if (this.isMoving()) {
+            scheme[0] = scheme[0].slice();
+            scheme[1] = scheme[1].slice();
+            scheme[2] = scheme[2].slice();
+            scheme[3] = scheme[3].slice();
+            const j = r*2;
+            if (j <= 0.5) {
+                scheme[0][2] += j*0.2;
+                scheme[1][2] += j*0.2;
+            } else if(j <= 1) {
+                scheme[0][2] += 0.2 - (j-0.5)*0.2;
+                scheme[1][2] += 0.2 - (j-0.5)*0.2;
+            } else if (j <= 1.5){
+                scheme[2][2] += (j-1)*0.2;
+                scheme[3][2] += (j-1)*0.2;
+            } else {
+                scheme[2][2] += 0.2 - (j-1.5)*0.2;
+                scheme[3][2] += 0.2 - (j-1.5)*0.2;
+
+            }
+        }
+
+        return convertDrawNew(scheme, a.x, a.y, this.d);
+    }
+
+    isMoving() {
+        return this.a[0] + this.a[1] !== 0;
     }
 
     pos(r) {
@@ -91,11 +120,12 @@ class Player extends Bot {
         this.isShieldActive = false;
     }
     render(r) {
-        let a = this.pos(r);
-        convertToDraw(ROBOT_SCHEME, a.x, a.y);
+        // console.log('DIRECTION', this.d);
+        Bot.prototype.render.call(this, r);
+        // convertToDraw(ROBOT_SCHEME, a.x, a.y);
         if (this.isShieldActive) {
             console.log('SHIELD');
-            convertToDraw(SHIELD, a.x, a.y)
+            convertDrawNew(SHIELD, this.pos(r).x, this.pos(r).y, this.d)
         }
     }
     update() {
@@ -128,7 +158,7 @@ class Camera {
     render(r) {
         c.translate(-this._c[0], -this._c[1]);
         let q = getPosition(this.p.pos(r).x, this.p.pos(r).y); // fixme: probably optimize
-        console.log('Q');
+        // console.log('Q');
         this._c = [-q[0], -q[1]]
         c.translate.apply(c, this._c);
     }
@@ -301,6 +331,120 @@ function convertToDraw(rec, x, y, dir = [0, 1]) {
     })
 }
 
+
+function convertDrawNew(rec, x, y, dir) { // [x, y, z, w, d, h, col]
+    // console.log('DIRECTION', dir);
+
+    // if (dir[0]) {
+    //     let ax = x;
+    //     x = y;
+    //     y = ax;
+    // }
+
+    if (dir[1] < 0) {
+        rec = rec.map(x => {
+            x = x.slice();
+            x[1] = 1-x[1]
+            return x;
+        });
+    }
+
+    if(dir[0] < 0) {
+        rec = rec.map(x => {
+            x = x.slice();
+            let t = 1 -x[0];
+            x[0] = 1 - x[1];
+            x[1] = t;
+            t = x[3];
+            x[3] = x[4];
+            x[4] = t;
+            return x;
+        })
+    }
+    // FIXME: check if it could be simplified
+    if(dir[0] > 0) {
+        rec = rec.map(x => {
+            x = x.slice();
+            let t = 1 -x[0];
+            x[0] = x[1];
+            x[1] = t;
+            t = x[3];
+            x[3] = x[4];
+            x[4] = t;
+            return x;
+        })
+    }
+
+    // const f = (x) => {
+    //     const p = getPosition(x[0] + x[3]/2, x[1]+x[4]/2);
+    //     return p[0] - p[1] - x[2] - x[5]/2;
+    // }
+
+    // const f = x => x[0];
+
+    // rec = rec.sort((x,y) => f(x) - f(y));
+
+
+    rec.map(r => {
+        // here comes the magic
+        let xx = r[0];
+        let yx = r[1];
+        let z = r[2];
+        let w = r[3];
+        let d = r[4];
+        let h = r[5];
+        let col = r[6];
+
+
+        // if (dir[1] < 0) {
+        //     yx = 1-yx;
+        // }
+        // if (dir[0] < 0) {
+        //     let ax = 1 - xx;
+        //     xx = 1 - yx;
+        //     yx = ax;
+
+        //     ax = w;
+        //     w = d;
+        //     d = ax;
+        // }
+
+        // if (dir[0] > 0) {
+        //     let ax = 1 - xx;
+        //     xx = yx;
+        //     yx = ax;
+
+        //     ax = w;
+        //     w = d;
+        //     d = ax;
+        // }
+
+        // console.log(dir);
+
+        // console.log('DRAW', x - xx + w/2, y - yx + d/2, col, w, d, h, z - h/2, false);
+        drawBox(x - xx + w/2, y - yx + d/2, col, w, d, h, z + h/2, false);
+    })
+}
+
+function convNew(scheme) {
+    return scheme.map(r => {
+        let xx = r[0];
+        let yx = r[1];
+        let z = r[2];
+        let w = r[3];
+        let d = r[4];
+        let h = r[5];
+        let col = r[6];
+        return [xx - w/2, yx - d/2, z - h/2, w, d, h, col];
+    })
+}
+
+const PLAYER_SCHEME_NEW = [
+    [0.5, 0.5, 0.05, 1, 1, 0.1, [200, 0, 0] ],
+    [0.1, 0.5, 0.1, 0.1, 0.1, 0.1, [50, 50, 200, 0.6]]
+
+]
+
 const RC = [170, 170, 170];
 
 const ROBOT_SCHEME = [
@@ -331,13 +475,28 @@ const ROBOT_SCHEME = [
     [0.2, 0.6, darken(RC, 0.2), 0.1, 0.1, 0.2, 0.7, true]
 ];
 
-const SHIELD = [
-    [0.3, 0.2, [50, 50, 200, 0.5], 0.8, 0.01, 0.8, 1.1]
+const ROBOT_SCHEME_NEW = [
+    // [0.5,0.5,0.5, 1, 1, 1, RC],
+    // [0.5, 0.5, 1.25, 0.5, 0.5, 0.5, [255, 0, 0]]
+    [0.3, 0.4, 0.05, 0.1, 0.3, 0.1, RC],
+    [0.3, 0.5, 0.3, 0.1, 0.1, 0.4, RC],
+
+    [0.6, 0.4, 0.05, 0.1, 0.3, 0.1, RC],
+    [0.6, 0.5, 0.3, 0.1, 0.1, 0.4, RC],
+
+    // belly
+    [0.5, 0.5, 0.6, 0.4, 0.4, 0.6, RC],
+    // head
+    [0.5, 0.5, 1.0, 0.2, 0.2, 0.2, RC],
+    [0.5, 0.4, 1.0, 0.2, 0.001, 0.1, [255, 0, 0]]
 ]
 
-function drawRobot(x, y) {
-    return convertToDraw(ROBOT_SCHEME, x, y);
-}
+// const ROBOT_SCHEME_NEW = convNew(ROBOT_SCHEME);
+
+const SHIELD = [
+    [0.5, 0.1, 0.5, 1, 0.01, 1, [50, 50, 200, 0.5]]
+    // [0.3, 0.2, [50, 50, 200, 0.5], 0.8, 0.01, 0.8, 1.1],
+]
 
 // function drawRobot(x, y) {
 
@@ -389,7 +548,7 @@ function drawMap() {
     for(let i=player.x-20;i<player.x+20;i++) {
         for(let j=player.y-20;j<player.y+20;j++) {
             if (isTile(i,j)) {
-                drawBox(i,j,[50, 50, 50, 0.8], 1, 1, 0.2, 0, false, grd2);
+                drawBox(i,j,[50, 50, 50, 1], 1, 1, 0.2, 0, false, grd2);
             }
         }
     }
