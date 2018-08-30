@@ -10,8 +10,8 @@ let fixSize = 2;
 let D = 100032.4524;
 let E = 3.3262;
 
-
-const FRAME_LENGTH = 150;
+let frame = 0;
+const FRAME_LENGTH = 100;
 let startTime = +(new Date());
 let nextFrame = startTime + FRAME_LENGTH;
 
@@ -27,7 +27,11 @@ function getNoise(x,y) {
 }
 
 function isTile(x, y) {
-    return getNoise(x,y) < 0.2;
+    return (x >= -52 && x <= -49 && y >=8 && y <= 11) || (getNoise(x,y) < 0.2 || getNoise(x, y) > 0.8) && !(2*x>3*y) && (2*x*y<x+y+10 ) && !(x-30)*(x-30)+(y-10)*(y-10)>1;
+}
+
+function isPartOfDataStream(x, y) {
+    return y > 8 && y < 12;
 }
 
 // BOT CLASS
@@ -38,12 +42,43 @@ class Bot {
         this.y = y;
         this.a = [0,0];
         this.d = [0, 1];
+        this.isDying = false;
+        this.isHit = false;
     }
 
     render(r) {
         let a = this.pos(r);
         // return convertToDraw(ROBOT_SCHEME, a.x, a.y);
         let scheme = ROBOT_SCHEME_NEW.slice();
+
+        if (this.isHit) {
+            let q = r;
+            if (q > 0.5) {
+                q = 1-q;
+            }
+            scheme = scheme.map(s => {
+                s = s.slice();
+                s[6] = shade(s[6], [255,0,0], q)
+                return s;
+            })
+        }
+
+        if (this.isDying) {
+            let q = r;
+            scheme = scheme.map(s => {
+                s = s.slice();
+                s[6] = shade(s[6], [255,100,0], r)
+                s[6][3] = r;
+                console.log(s[6])
+                // FIXME: no idea why this works.
+                const RT = 1.5;
+                s[3] *= RT*(1+(1-r));
+                s[4] *= RT*(1+(1-r));
+                s[5] *= RT*(1+(1-r));
+                console.log('DYING',r)
+                return s;
+            })
+        }
 
         if (this.isMoving()) {
             scheme[0] = scheme[0].slice();
@@ -82,6 +117,7 @@ class Bot {
 
     update() {
         this.a = [0,0];
+        // return; // FIXME: just to make them stand still
         if (Math.random() > 0.2) {
             // decided to move ass
             let a = [0, 0];
@@ -103,13 +139,24 @@ class Bot {
             }
         }
 
-        if (Math.random() > 0.7) {
+        if (Math.random() > 0.95) {
             this.fire();
         }
     }
 
+    hit() {
+        if (--this.health <= 0) {
+            this.isDying = true;
+            explosionSound();
+        } else {
+            this.isHit = true;
+        }
+        
+    }
+
     fire() {
         bullets.push(new Bullet(this.x, this.y, this.d));
+        shotSound();
     }
 }
 
@@ -167,15 +214,15 @@ class Camera {
 let player = new Player(0, 0);
 let camera = new Camera(player);
 
-const BULLET_LIFETIME = 5;
-const BULLET_SPEED = 2;
+const BULLET_LIFETIME = 8;
+const BULLET_SPEED = 1;
 class Bullet {
     constructor(x, y, a) {
         this.x = x + a[0];
         this.y = y + a[1];
         this.a = a;
         this.ttl = BULLET_LIFETIME + 1;
-        this.deactivated = false;
+        this.togc = false;
     }
 
     render(r) {
@@ -190,18 +237,61 @@ class Bullet {
         this.x += this.a[0]*BULLET_SPEED;
         this.y += this.a[1]*BULLET_SPEED;
         if (!this.ttl) {
-            this.deactivated = true;
+            this.togc = true;
         }
     }
 }
 
 const BAR_TIME = 0.25;
 
+// var a = new (window.AudioContext || window.webkitAudioContext)();
+// var g = a.createGain();
+// var o = a.createOscillator();
+// o.type = 'square';
+// o.connect(g);
+// g.connect(a.destination);
+// o.start();
+// g.gain.linearRampToValueAtTime(0, a.currentTime + 0.01);
+
+function shotSound() {
+//     g.gain.setValueAtTime(100, a.currentTime);
+//     o.frequency.setValueAtTime(300, a.currentTime)
+//     o.frequency.linearRampToValueAtTime(140, a.currentTime + 0.1)
+//     g.gain.linearRampToValueAtTime(0, a.currentTime + 0.1);
+
+//     // setTimeout(() => {
+//     //     o.stop();
+//     //     o.disconnect();
+//     // }, 1000);
+}
+
+
+// var aa = new (window.AudioContext || window.webkitAudioContext)();
+// var gg = aa.createGain();
+// var oo = aa.createOscillator();
+// oo.type = 'square';
+// oo.connect(gg);
+// gg.connect(aa.destination);
+// oo.start();
+// gg.gain.linearRampToValueAtTime(0, a.currentTime + 0.01);
+
+function explosionSound() {
+//     gg.gain.setValueAtTime(100, a.currentTime);
+//     for(var i=0;i<10;i++) {
+//         // oo.frequency.linearRampToValueAtTime(140, a.currentTime + i*0.03)
+//         oo.frequency.linearRampToValueAtTime(50, a.currentTime + i*0.01 + 0.01)
+//     }x
+//     // o.frequency.linearRampToValueAtTime(300, a.currentTime + 0.7)
+//     gg.gain.linearRampToValueAtTime(0, a.currentTime + 0.15);
+}
+
+// window.ss = shotSound
+
 class Music {
     constructor(loop) {
         var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         var oscillator = audioCtx.createOscillator();
-        oscillator.type = 'square';
+        oscillator.type = 'sawtooth';
 
         this.o = oscillator;
         this.a = audioCtx;
@@ -254,8 +344,8 @@ const bass = (hz) => {
     return x;
 }
 
-const mus = new Music([].concat(bass(440/4), bass(400/4), bass(470/4), bass(440/4)));
-mus.start();
+// const mus = new Music([].concat(bass(440/4), bass(400/4), bass(470/4), bass(440/4)));
+// mus.start();
 
 // const mus = new Music([
 //     [2, 440],
@@ -297,6 +387,21 @@ mus.start();
 // ])
 // mus2.start();
 
+const duration = 4;
+
+// const st = new Music([
+//     [duration, 65.4], // c e g b c
+//     [duration, 82.4],
+//     [duration, 98.0],
+//     [duration, 123.5],
+//     [duration, 130.8],
+//     [duration, 123.5],
+//     [duration, 98.0],
+//     [duration, 82.4]
+// ])
+
+// st.start();
+
 function isOccupied(x, y) {
     return false;
 
@@ -306,7 +411,7 @@ function isOccupied(x, y) {
 let bullets = [];
 
 // Make bots
-const bots = []
+let bots = []
 while(bots.length<20) {
     var x = Math.floor(-50 * Math.random() + 20);
     var y = Math.floor(-50 * Math.random() + 20);
@@ -638,6 +743,11 @@ function drawBullet(x, y, opacity = 1) {
     drawBox(x - 0.2, y - 0.2, [200, 50, 50, opacity], 0.1, 0.1, 0.1, 0.6, true);
 }
 
+function drawGoal(x, y, glow) {
+    const g = Math.sin(frame%10/10+glow/100 * 2*Math.PI);
+    drawBox(x, y, [20+g*100, 200, 20+g*100, 0.7-g*0.5], 1, 1, 1,1);
+}
+
 
 
 const grd = c.createLinearGradient(camPos[0] - CW/2, camPos[1] - CH/2, camPos[0] - CW/2, camPos[1] + CH);
@@ -648,24 +758,128 @@ const grd2 = c.createLinearGradient(camPos[0] - CW/2, camPos[1] - CH/2, camPos[0
 grd2.addColorStop(0, 'rgba(28, 206,52, 0.5)');
 grd2.addColorStop(1, 'rgba(226, 217,3, 0.5)');
 
-function drawMap() {
+function drawMap(r) {
     for(let i=player.x-20;i<player.x+20;i++) {
         for(let j=player.y-20;j<player.y+20;j++) {
             if (isTile(i,j)) {
-                drawBox(i,j,[50, 50, 50, 1], 1, 1, 0.2, 0, false, grd2);
+                drawBox(i,j,[0, 0, 0, 0.9], 1, 1, 0.8, 0, false, grd2);
+            } else if (isPartOfDataStream(i,j)) {
+                const f = ((frame%10)/10 + r/100);
+                drawBox(i+0.4+f, j+0.4+Math.sin(f*Math.PI)*0.2, [50,255,0, 0.8], 0.2, 0.2, 0.2, false, false, 'rgba(0,0,0,0)');
+                drawBox(i+0.7+f*2, j+0.2*0.356, [20,255,50, 1], 0.2, 0.2, 0.2, false, false, 'rgba(0,0,0,0)');
             }
         }
     }
+
+    // //DRAW TEXTBOX
+
+    // const poz = getPosition(player.pos(r).x, player.pos(r).y)
+    // const hei = 70;
+
+    // c.beginPath();
+    // c.rect(poz[0]-CW/4 - 5, poz[1] - 20 - 1, CW/2, hei);
+    // c.fillStyle = 'red';
+    // c.fill();
+
+    // c.beginPath();
+    // c.rect(poz[0]-CW/4 + 5, poz[1] - 20 + 3, CW/2, hei);
+    // c.fillStyle = 'green';
+    // c.fill();
+
+
+    // c.beginPath();
+    // c.rect(poz[0]-CW/4 - 3, poz[1] - 20 +3, CW/2, hei);
+    // c.fillStyle = 'blue';
+    // c.fill();
+
+    // c.beginPath();
+    // c.rect(poz[0]-CW/4, poz[1] - 20, CW/2, hei);
+    // c.fillStyle = '#000';
+    // c.fill();
+
+
+    // c.font = '20px Courier New';
+    // const cols = ['red', 'green', 'blue', '#FFF'];
+    // const offset = [[-2, 0], [3, 1], [2, -1],[0,0]];
+    // for(var i in cols) {
+    //     c.fillStyle = cols[i];
+    //     c.fillText('Welcome to the cyberspace', poz[0]-CW/4 + 20 + offset[i][0], poz[1] + 20 + offset[i][1]);
+    // }
 }
 
 function drawPlayer(r) {
     player.render(r); // FIXME: move shield rendering to class
 }
 
+let stars = [];
+for(let i=0;i<300;i++) {
+    stars.push([
+        getNoise(i*5.3423, i*0.64323),
+        getNoise(i*10, i*12),
+        getNoise(i * 23.41, i*414.421)
+    ])
+}
+
 function drawBackground(r) {
     c.fillStyle=grd;
     const sm = getPosition(player.pos(r).x, player.pos(r).y, -CW/2, -CH/2);
     c.fillRect(sm[0], sm[1], CW, CH);
+    for(var s of stars) {
+        c.beginPath();
+        c.arc(sm[0] + CW/2 + s[0]*CW, sm[1] + CH/2 + s[1]*CH,1.5 + 0.5*s[2],0,2*Math.PI);
+        c.fillStyle = '#FFF';
+        c.fill();
+    }
+
+
+    c.beginPath();
+    let sunX = sm[0] + CW/2 + CW/3 - player.pos(r).y*0.5;
+    let sunY = sm[1] + CH/3;
+    let sunR =  CH/4;
+
+
+    // glow
+    // const glowg = c.createRadialGradient(sunX, sunY, sunR, sunX, sunY, sunR+10);
+    // glowg.addColorStop(0, 'rgba(255,255,0, 0)');
+    // glowg.addColorStop(0.01, 'rgba(255,255,0,1)');
+    // glowg.addColorStop(1, 'rgba(255,255,0,0)');
+    // c.arc(sunX, sunY, sunR+11, 0, 2*Math.PI);
+    // c.fillStyle = glowg;
+    // c.fill();
+
+
+    c.beginPath();
+    c.arc(sunX, sunY, sunR,0,2*Math.PI);
+
+
+    const sung = c.createLinearGradient(sunX,sunY-sunR,sunX,sunY+sunR);
+    sung.addColorStop(0, 'rgb(255, 255, 30, 0.9)');
+    sung.addColorStop(1, 'rgba(200, 30, 70, 0.8)');
+
+    c.fillStyle = sung;
+    c.fill();
+    const slices=20;
+    let j = 0;
+
+
+    for(var i=-5;i<slices;i++) {
+        j++;
+        // rects clearing the circle
+        if(i%2==0) { continue }
+        c.beginPath();
+        c.rect(sunX-sunR,sunY+sunR/slices*i*j*0.1,2*sunR,sunR/slices*j*0.2);
+        // c.rect(sunX, sunY, 10, 10);
+        c.fillStyle=grd;
+        c.fill();
+    }
+
+    // SOME RETRO TEXT
+    c.font = '30px Arial';
+    c.fillStyle ='#000';
+    c.fillText('' + player.x + ','+ player.y,sm[0] + 33, sm[1] + 43)
+    c.fillStyle = '#FFF';
+    c.fillText('' + player.x + ','+ player.y,sm[0] + 30, sm[1] + 40)
+
 }
 
 function drawEnemies(r) {
@@ -676,14 +890,38 @@ function drawBullets(r) {
     bullets.map(b => b.render(r));
 }
 
+function computeCollisions() {
+    bullets.map(b => {
+        bots.map(bot => {
+            if (b.x === bot.x && b.y === bot.y) {
+                console.log('HIT');
+                bot.hit();
+                b.togc = true;
+
+            }
+        })
+    })
+}
+
+function gc() {
+    bots = bots.filter(b => !b.togc);
+    bullets = bullets.filter(b => !b.togc);
+}
+
 function recomputeFrame() {
     let now = +(new Date());
     if (now > nextFrame) {
+        bots.map(b => b.isHit = false)
+        bots = bots.filter(b => !b.isDying);
+        computeCollisions();
+        gc();
         // updating all
         bots.map(b => b.update());
         bullets.map(b => b.update());
+
         player.update();
         nextFrame = now + FRAME_LENGTH;
+        frame++;
         // FIXME: collision detection probably.
     }
 
@@ -691,21 +929,62 @@ function recomputeFrame() {
 }
 
 
+
+/// GAME.
+
+
 function draw() {
     const currentFrameMoment = recomputeFrame();
     clear();
     camera.render(currentFrameMoment);
     drawBackground(currentFrameMoment);
-    drawMap();
+    drawMap(currentFrameMoment);
     drawEnemies(currentFrameMoment);
     drawBullets(currentFrameMoment);
     drawPlayer(currentFrameMoment);
-    // drawRobot(0, 0);
+    drawGoal(0, 0, currentFrameMoment);
 
     requestAnimationFrame(draw);
 }
 
 draw();
+
+
+
+// function introFn(t) {
+    
+// }
+
+
+// const gameModes = [
+//     {
+//         name: 'INTO',
+//         fn: introFn
+//     },
+//     {
+//         name: 'STAGE',
+//     }
+// ];
+
+// let currentMode = 0;
+
+
+// function nextMode() {
+//     currentMode++;
+// }
+
+// function gameLoop() {
+//     const mode = gameModes[currentMode];
+//     console.log('Mode', mode.name);
+
+// }
+
+
+
+
+
+
+
 
 document.addEventListener('keyup', function(e) {
     if (e.key === 'z') {
@@ -743,8 +1022,8 @@ document.addEventListener('keydown', function(e) {
     }
 })
 
-window.addEventListener('mousemove', function(e) {
-    const ratio = ((e.clientY / window.document.body.offsetHeight) - 0.5) * 2;
-    console.log(ratio);
-    window.S = 2 + ratio * 5;
-})
+// window.addEventListener('mousemove', function(e) {
+//     const ratio = ((e.clientY / window.document.body.offsetHeight) - 0.5) * 2;
+//     console.log(ratio);
+//     window.S = 2 + ratio * 5;
+// })
