@@ -873,6 +873,35 @@ function drawBackground(r) {
         c.fill();
     }
 
+
+    const count = 500;
+
+    let u = 2;
+    while(u--) {
+        console.log('Drawing', u);
+        let posX = sm[0];
+        let posY = sm[1] + CH/5*2;
+
+        c.beginPath();
+        c.moveTo(posX - 100, posY + CH / 2);
+        c.fillStyle=u >= 1 ?'#BD3CC0' : 'rgba(50, 50, 50, 0.4)';
+        c.strokeStyle = 'red';
+        posX -= u<1 ? 10 : 0;
+        posY += u<1 ? 10 : 0;
+        // Mountains
+        for(var i=0;i<count;i++) {
+            let fr = Math.floor(frame/10)
+            posX += 1/count*CW;
+            let df = -i/count*CH/1000 + getNoise((fr+i)*4543.54, (i+fr)*4.13) * (CH / 10) *(i%15)/15;
+            c.lineTo(posX + r*1/count*CW, posY + df);
+        }
+        c.lineTo(posX+CW/2, sm[1] + CH);
+
+        // c.fill();
+        c.stroke();
+    }
+
+
     // SOME RETRO TEXT
     c.font = '30px Arial';
     c.fillStyle ='#000';
