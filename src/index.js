@@ -160,6 +160,21 @@ class Bot {
     }
 }
 
+function generateSwarm(r) {
+    let scheme = SWARM_NEW.slice();
+    return scheme.map(x => {
+        x = x.slice();
+        x[3] -= Math.sin(2*Math.PI*r)*0.3;
+        x[2] += Math.random()*0.4;
+        x[6] = x[6].slice();
+        x[6][0] += Math.random()*10;
+        x[6][1] += Math.random()*20;
+        x[6][2] -= Math.random()*10;
+        console.log(x);
+        return x;
+    })
+}
+
 class Player extends Bot {
     constructor(x, y) {
         super(x, y);
@@ -168,8 +183,13 @@ class Player extends Bot {
     }
     render(r) {
         // console.log('DIRECTION', this.d);
-        Bot.prototype.render.call(this, r);
+        // Bot.prototype.render.call(this, r);
         // convertToDraw(ROBOT_SCHEME, a.x, a.y);
+        let scheme = getCoin(getMultiframePosition(50, frame,r));
+
+        // convertDrawNew(PLAYER_SCHEME_NEW, this.pos(r).x, this.pos(r).y, this.d);
+        convertDrawNew(scheme, this.pos(r).x, this.pos(r).y, this.d);
+
         if (this.isShieldActive) {
             console.log('SHIELD');
             convertDrawNew(SHIELD, this.pos(r).x, this.pos(r).y, this.d)
@@ -647,42 +667,161 @@ function convNew(scheme) {
         return [xx - w/2, yx - d/2, z - h/2, w, d, h, col];
     })
 }
-
-const PLAYER_SCHEME_NEW = [
-    [0.5, 0.5, 0.05, 1, 1, 0.1, [200, 0, 0] ],
-    [0.1, 0.5, 0.1, 0.1, 0.1, 0.1, [50, 50, 200, 0.6]]
-
-]
-
 const RC = [170, 170, 170];
 
-const ROBOT_SCHEME = [
-    // leg ??
-    [0.3, 0.4, RC, 0.1, 0.3, 0.1],
-    [0.3, 0.6, RC, 0.1, 0.1, 0.5, 0, true],
+const wtf_SCHEME_NEW = [
+    // [0.5,0.5,0.5, 1, 1, 1, RC],
+    // [0.5, 0.5, 1.25, 0.5, 0.5, 0.5, [255, 0, 0]]
+    [0.3, 0.45, 0.05, 0.05, 0.2, 0.05, RC],
+    [0.3, 0.5, 0.3, 0.05, 0.05, 0.4, RC],
+
+    [0.6, 0.45, 0.05, 0.05, 0.2, 0.05, RC],
+    [0.6, 0.5, 0.3, 0.05, 0.05, 0.4, RC],
+
+    // belly
+    [0.5, 0.5, 0.6, 0.2, 0.2, 0.4, RC],
+    // head
+    [0.5, 0.5, 1.0, 0.2, 0.2, 0.2, RC],
+    [0.5, 0.4, 1.0, 0.2, 0.001, 0.1, [255, 0, 0]]
+]
+
+const PC = [200, 180, 150]
+
+const PLAYER_SCHEME_NEW = [
+    // [0.5,0.5,0.5, 1, 1, 1, RC],
+    // [0.5, 0.5, 1.25, 0.5, 0.5, 0.5, [255, 0, 0]]
+    [0.35, 0.425, 0.05, 0.05, 0.2, 0.05, PC],
+    [0.35, 0.5, 0.15, 0.05, 0.05, 0.2, PC],
+
+    [0.55, 0.425, 0.05, 0.05, 0.2, 0.05, PC],
+    [0.55, 0.5, 0.15, 0.05, 0.05, 0.2, PC],
+
+    // belly
+    [0.5, 0.5, 0.4, 0.2, 0.2, 0.4, [40, 70, 150]],
+    // head
+    [0.5, 0.5, 0.7, 0.3, 0.3, 0.3, PC],
+
+    // eye
+
+    // [0.5, 0.4, 1.0, 0.2, 0.001, 0.1, [255, 0, 0]]
+]
+
+for(var i=10;i>0;i--) {
+    for(var j=10;j>0;j--) {
+        const size = Math.random()*0.1;
+        const x = 0+i*0.03;
+        const y = 0.5+j*0.03;
+        PLAYER_SCHEME_NEW.push([
+            x,
+            y,
+            0.70-size/2,
+            0.03,
+            0.03,
+            size,
+            [140,70,45]
+        ])
+    }
+}
+
+const SWARM_NEW = [
+    // [0.5,0.5, 0.5, 0.5, 0.5, 0.5, [255, 0, 0]],
+]
+for(let j=0;j<5;j++) {
+    for(let i=0;i<10;i++) {
+        
+        SWARM_NEW.push([
+            0.5 + Math.sin(2*Math.PI/10*i)*0.3,
+            0.5 + Math.cos(2*Math.PI/10*i)*0.3,
+            0.5 + Math.cos(2*Math.PI/10*j)*0.3,
+            0.05,
+            0.05,
+            0.05,
+            [200-24*i, 40*j, j*i*0.5, 0.5]
+        ])
+    }
+}
+
+function getVirus(r) {
+    let v = [
+        // [0.5, 0.5, 0.5, 0.2, 0.2, 0.2, [20, 200, 20]]
+    ];
+    for(let i=0;i<8;i++) {
+        v.push([
+            0.5 + Math.sin(2*Math.PI/8*i)*0.4*Math.cos(2*Math.PI*r),
+            0.5 + Math.cos(2*Math.PI/8*i)*0.4*Math.sin(2*Math.PI*r),
+            0.5,
+            0.1,
+            0.1,
+            0.1,
+            [40, 80+i*20, 200-i*10]
+        ])
+    }
+    return v;
+}
+
+function getCoin(r) {
+    let v = [];
+    for(let i=1;i<8;i++) {
+        v.push([
+            0.5,
+            0.5,
+            0.05*i,
+            0.05+0.2*Math.sin(Math.PI*(i/8)),
+            0.1,
+            0.05,
+            [200,200,0]
+        ])
+    }
+    return v;
+}
+
+function getMultiframePosition(multi, frame, r) {
+    return (frame % multi)/multi + r / (multi*multi);
+}
+
+// PLAYER_SCHEME_NEW.push([
+//     0.5,
+//     0.5,
+//     0.7+0.2,
+//     0.1,
+//     0.1,
+//     0.1,
+//     [255,0,0]
+// ])
+
+PLAYER_SCHEME_NEW.push([0.45, 0.35, 0.7, 0.05, 0.001, 0.05, [0, 0, 0]]);
+PLAYER_SCHEME_NEW.push([0.6, 0.35, 0.7, 0.05, 0.001, 0.05, [0, 0, 0]]);
+PLAYER_SCHEME_NEW.push([0.525, 0.35, 0.6, 0.03, 0.001, 0.03, [200, 60, 50]]);
+
+window.P = PLAYER_SCHEME_NEW;
+
+// const ROBOT_SCHEME = [
+//     // leg ??
+//     [0.3, 0.4, RC, 0.1, 0.3, 0.1],
+//     [0.3, 0.6, RC, 0.1, 0.1, 0.5, 0, true],
     
-    // arm 2
-    [0.8, 0.3, darken(RC, 0.2), 0.1, 0.3, 0.1, 0.6, true],
-    [0.8, 0.2, [20, 20, 20], 0.1, 0.1, 0.1, 0.6, true],
-    [0.8, 0.5, darken(RC, 0.2), 0.1, 0.1, 0.2, 0.7, true],
+//     // arm 2
+//     [0.8, 0.3, darken(RC, 0.2), 0.1, 0.3, 0.1, 0.6, true],
+//     [0.8, 0.2, [20, 20, 20], 0.1, 0.1, 0.1, 0.6, true],
+//     [0.8, 0.5, darken(RC, 0.2), 0.1, 0.1, 0.2, 0.7, true],
 
-    // body
-    [0.7, 0.4, RC, 0.1, 0.3, 0.1],
-    [0.7, 0.6, RC, 0.1, 0.1, 0.5, 0, true],
-    [0.3, 0.4, RC, 0.6, 0.6, 0.6, 0.5, true],
+//     // body
+//     [0.7, 0.4, RC, 0.1, 0.3, 0.1],
+//     [0.7, 0.6, RC, 0.1, 0.1, 0.5, 0, true],
+//     [0.3, 0.4, RC, 0.6, 0.6, 0.6, 0.5, true],
 
-    [0.4, 0.5, RC, 0.4, 0.4, 0.4, 1.1, true], // head
-    [0.45, 0.49, [0,0,0], 0.3, 0.01, 0.2, 1.2, true], // face
+//     [0.4, 0.5, RC, 0.4, 0.4, 0.4, 1.1, true], // head
+//     [0.45, 0.49, [0,0,0], 0.3, 0.01, 0.2, 1.2, true], // face
 
-    // eyes:
-    [0.75, 0.59, [0,0,200], 0.05, 0.01, 0.05, 1.2, true], // eye1
-    [0.6, 0.59, [0,0,200], 0.05, 0.01, 0.05, 1.2, true], // eye 2
+//     // eyes:
+//     [0.75, 0.59, [0,0,200], 0.05, 0.01, 0.05, 1.2, true], // eye1
+//     [0.6, 0.59, [0,0,200], 0.05, 0.01, 0.05, 1.2, true], // eye 2
 
-    // arm 1
-    [0.2, 0.4, darken(RC, 0.2), 0.1, 0.3, 0.1, 0.6, true],
-    [0.2, 0.3, [20, 20, 20], 0.1, 0.1, 0.1, 0.6, true],
-    [0.2, 0.6, darken(RC, 0.2), 0.1, 0.1, 0.2, 0.7, true]
-];
+//     // arm 1
+//     [0.2, 0.4, darken(RC, 0.2), 0.1, 0.3, 0.1, 0.6, true],
+//     [0.2, 0.3, [20, 20, 20], 0.1, 0.1, 0.1, 0.6, true],
+//     [0.2, 0.6, darken(RC, 0.2), 0.1, 0.1, 0.2, 0.7, true]
+// ];
 
 const ROBOT_SCHEME_NEW = [
     // [0.5,0.5,0.5, 1, 1, 1, RC],
@@ -758,6 +897,32 @@ const grd2 = c.createLinearGradient(camPos[0] - CW/2, camPos[1] - CH/2, camPos[0
 grd2.addColorStop(0, 'rgba(28, 206,52, 0.5)');
 grd2.addColorStop(1, 'rgba(226, 217,3, 0.5)');
 
+function drawTextfield(text) {
+    const poz = getPosition(player.x, player.y)
+    const layers = [
+        [-5, -1, 'red'],
+        [5, 3, 'green'],
+        [-3, 3, 'blue'],
+        [0,0,'#000']
+    ];
+    const hei = 70;
+    layers.map(l => {
+        console.log('layers', l);
+        c.beginPath();     
+        c.rect(poz[0]-CW/4 + l[0], poz[1] - 20 + l[1], CW/2, hei);
+        c.fillStyle = l[2];
+        c.fill();
+    });
+
+    const ls = [[-2, 0, 'red'], [3, 1, 'green'], [2, -1, 'blue'],[0,0, 'white']];
+    c.font = '20px Courier New';
+    ls.map(l => {
+        c.fillStyle = l[2];
+        c.fillText(text, poz[0]-CW/4 + 20 +l[0], poz[1] + 20 + l[1]);
+    });
+}
+
+
 function drawMap(r) {
     for(let i=player.x-20;i<player.x+20;i++) {
         for(let j=player.y-20;j<player.y+20;j++) {
@@ -770,6 +935,8 @@ function drawMap(r) {
             }
         }
     }
+
+    // drawTextfield('Welcome to the cyberspace xxx');
 
     // //DRAW TEXTBOX
 
@@ -878,7 +1045,7 @@ function drawBackground(r) {
 
     let u = 2;
     while(u--) {
-        console.log('Drawing', u);
+        // console.log('Drawing', u);
         let posX = sm[0];
         let posY = sm[1] + CH/5*2;
 
@@ -923,7 +1090,7 @@ function computeCollisions() {
     bullets.map(b => {
         bots.map(bot => {
             if (b.x === bot.x && b.y === bot.y) {
-                console.log('HIT');
+                // console.log('HIT');
                 bot.hit();
                 b.togc = true;
 
@@ -957,6 +1124,63 @@ function recomputeFrame() {
     return (nextFrame - now) / FRAME_LENGTH;
 }
 
+let weirdAnimEndFrame = 0;
+let weirdAnimSize = 0;
+let weirdColor = 0;
+let weirdAnimLen = 4;
+
+let weirdFreezeFrame = 0;
+let weirdFrame = null;
+let weirdFrameX = 0;
+let weirdFrameY = 0;
+
+function drawPostprocess(r) {
+    const pos = getPosition(player.pos(r).x, player.pos(r).y, -CW/2, -CH/2);
+    let cn = CH;
+    let f = getMultiframePosition(10, frame, r);
+    for(var i=0;i<cn;i++) {
+        if (i%2 == 0) { continue; }
+
+        c.beginPath();
+        c.fillStyle = 'rgba(0,0,0,'+ 0.6 + ')';
+        c.rect(pos[0], pos[1] + CH/cn*i + frame%2, CW, CH/cn);
+        c.fill();
+    }
+
+    if(Math.random() > 0.9899 && weirdAnimEndFrame < frame) {
+        weirdAnimLen = 2 + Math.floor(Math.random() * 10); 
+        weirdAnimEndFrame = frame + weirdAnimLen;
+        weirdAnimSize = CH/80*Math.random();
+        weirdColor = Math.round(Math.random()*4);
+    }
+
+    if (weirdAnimEndFrame > frame) {
+        let clr = [0,0,0, 0.5];
+        if (weirdColor > 0) {
+            clr[weirdColor-1] = 200;
+        }
+        c.fillStyle = 'rgba(' + clr.join(',') + ')';
+        c.rect(pos[0], pos[1] + CH * (1 -(weirdAnimEndFrame-frame)/weirdAnimLen), CW, weirdAnimSize);
+        c.fill();
+    }
+
+    // Weird freeze
+    if (Math.random() > 0.5 && weirdFreezeFrame < frame) {
+        weirdFreezeFrame = frame + 2;
+        let posX = Math.random() * CW*0.9;
+        let posY = Math.random() * CH*0.9;
+        let width = Math.min(CW-posX, CW/3);
+        let height = Math.min(CH-posY, CH/4);
+        weirdFrame = c.getImageData(posX, posY, width, height);
+        weirdFrameX = posX + (Math.random()-0.5)*2*3;
+        weirdFrameY = posY + (Math.random()-0.5)*2*6;
+    }
+
+    if (weirdFreezeFrame > frame) {
+        c.putImageData(weirdFrame, weirdFrameX, weirdFrameY);
+    }
+}
+
 
 
 /// GAME.
@@ -972,6 +1196,7 @@ function draw() {
     drawBullets(currentFrameMoment);
     drawPlayer(currentFrameMoment);
     drawGoal(0, 0, currentFrameMoment);
+    drawPostprocess(currentFrameMoment);
 
     requestAnimationFrame(draw);
 }
