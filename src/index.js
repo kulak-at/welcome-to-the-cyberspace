@@ -34,6 +34,111 @@ function isPartOfDataStream(x, y) {
     return y > 8 && y < 12;
 }
 
+const keys = {
+    isX: false,
+    isZ: false,
+}
+
+
+
+
+let currentMode = {
+    type: 'STAGE',
+};
+
+function enterTextMode(text, noscale) {
+    let t = text.shift();
+    let animationFinishFrame = frame + 10;
+    if (noscale) {
+        animationFinishFrame = frame - 1;
+    }
+    currentMode = {
+        type: 'TEXT',
+        animationFinishFrame: animationFinishFrame,
+        currentText: '',
+        fullText: t,
+        nextLetterTime: 0,
+        nextText: text
+    }
+};
+
+function enterStageTransitionMode() {
+    currentMode = {
+        type: 'STAGE_TRANSITION',
+        fullScaleOut: frame + 5,
+        initialScale: s
+    }
+}
+
+function enterStageMode() {
+    currentMode = {
+        type: 'STAGE'
+    }
+}
+
+function drawStageTransition(r) {
+    if (frame > currentMode.fullScaleOut) {
+        changeScale(defaultScale);
+        enterStageMode();
+    } else {
+        let fr = (currentMode.fullScaleOut - frame)/5 + r/(5*5);
+        changeScale(defaultScale + fr * (currentMode.initialScale - defaultScale));
+    }
+}
+
+function drawTextFrame(r) {
+    if (currentMode.currentText.length === currentMode.fullText.length && keys.isX) {
+        // FIXME: wait for the close sign.
+        if (currentMode.nextText.length) {
+            enterTextMode(currentMode.nextText, true);
+        } else {
+            enterStageTransitionMode();
+        }
+        return;
+    } else if (frame <= currentMode.animationFinishFrame) {
+        let fr = (10 - (currentMode.animationFinishFrame - frame))/10 + r/100;
+        changeScale(defaultScale + fr * 80);
+        return;
+    } else if (currentMode.nextLetterTime < (frame + r) && currentMode.currentText.length !== currentMode.fullText.length) {
+        currentMode.currentText += currentMode.fullText[currentMode.currentText.length];
+        currentMode.nextLetterTime = 0;
+    }
+    console.log('CURRENT TEXT', currentMode.currentText);
+
+    drawTextfield(currentMode.currentText);
+}
+
+const triggers = [
+    {
+        x: (x) => true,
+        y: (y) => y === 11,
+        used: false,
+        trigger: () => enterTextMode([
+            'This is our main datastream.',
+            'All the information on the internet runs through here',
+            'Behind this bridge you can find many unpleastant things',
+            'Viruses, bots, swarms of data',
+            'Be prepared',
+            'You can use your gun by pressing X',
+            'Your shield can be activated by using Z'
+        ])
+    }
+]
+
+
+function computeTriggers(x, y) {
+    triggers.forEach(t => {
+        if (t.x(x) && t.y(y) && !t.used) {
+            t.trigger();
+            t.used = true;
+        }
+    });
+}
+
+
+
+
+
 // BOT CLASS
 class Bot {
     constructor(x, y) {
@@ -185,7 +290,7 @@ class Player extends Bot {
         // console.log('DIRECTION', this.d);
         // Bot.prototype.render.call(this, r);
         // convertToDraw(ROBOT_SCHEME, a.x, a.y);
-        let scheme = getCoin(getMultiframePosition(50, frame,r));
+        let scheme = getVirus(getMultiframePosition(50, frame,r));
 
         // convertDrawNew(PLAYER_SCHEME_NEW, this.pos(r).x, this.pos(r).y, this.d);
         convertDrawNew(scheme, this.pos(r).x, this.pos(r).y, this.d);
@@ -441,7 +546,9 @@ while(bots.length<20) {
 }
 
 
-let s = 80;
+
+const defaultScale = 80;
+let s = defaultScale;
 function changeScale(newS) {
     s = newS;
 }
@@ -897,6 +1004,27 @@ const grd2 = c.createLinearGradient(camPos[0] - CW/2, camPos[1] - CH/2, camPos[0
 grd2.addColorStop(0, 'rgba(28, 206,52, 0.5)');
 grd2.addColorStop(1, 'rgba(226, 217,3, 0.5)');
 
+
+function splitText(text, size=40) {
+
+    let t = text.split(' ');
+    let res=[];
+    let curr = '';
+
+    t.forEach(t => {
+        if ((curr + t).length >= size) {
+            res.push(curr + ' ' + t);
+            curr = '';
+        } else {
+            curr += ' ' + t;
+        }
+    })
+    if (curr.length > 0) {
+        res.push(curr);
+    }
+    return res;
+}
+
 function drawTextfield(text) {
     const poz = getPosition(player.x, player.y)
     const layers = [
@@ -905,20 +1033,29 @@ function drawTextfield(text) {
         [-3, 3, 'blue'],
         [0,0,'#000']
     ];
-    const hei = 70;
+    c.font = '20px Courier New';
+
+    text = splitText(text);
+    
+    let textWid = Math.max.apply(Math, text.map(t => c.measureText(t).width));
+
+    const padding = 20;
+    const hei = 30 * text.length + 2*padding - 10;
+    const wid = textWid + 2*padding;
     layers.map(l => {
-        console.log('layers', l);
         c.beginPath();     
-        c.rect(poz[0]-CW/4 + l[0], poz[1] - 20 + l[1], CW/2, hei);
+        c.rect(poz[0]-wid/2 + l[0], poz[1] - padding + l[1] - hei/2, wid, hei);
         c.fillStyle = l[2];
         c.fill();
     });
 
-    const ls = [[-2, 0, 'red'], [3, 1, 'green'], [2, -1, 'blue'],[0,0, 'white']];
-    c.font = '20px Courier New';
-    ls.map(l => {
-        c.fillStyle = l[2];
-        c.fillText(text, poz[0]-CW/4 + 20 +l[0], poz[1] + 20 + l[1]);
+    text.map((t,i) => {
+
+        const ls = [[-2, 0, 'red'], [3, 1, 'green'], [2, -1, 'blue'],[0,0, 'white']];
+        ls.map(l => {
+            c.fillStyle = l[2];
+            c.fillText(t, poz[0]-wid/2 + padding + l[0], poz[1] + 20 + l[1] + i*30 - hei/2);
+        });
     });
 }
 
@@ -1107,17 +1244,20 @@ function gc() {
 function recomputeFrame() {
     let now = +(new Date());
     if (now > nextFrame) {
-        bots.map(b => b.isHit = false)
-        bots = bots.filter(b => !b.isDying);
-        computeCollisions();
-        gc();
-        // updating all
-        bots.map(b => b.update());
-        bullets.map(b => b.update());
+        if (currentMode.type === 'STAGE') {
+            bots.map(b => b.isHit = false)
+            bots = bots.filter(b => !b.isDying);
+            computeCollisions();
+            gc();
+            // updating all
+            bots.map(b => b.update());
+            bullets.map(b => b.update());
 
-        player.update();
+            player.update();
+        }
         nextFrame = now + FRAME_LENGTH;
         frame++;
+        computeTriggers(player.x, player.y);
         // FIXME: collision detection probably.
     }
 
@@ -1165,7 +1305,7 @@ function drawPostprocess(r) {
     }
 
     // Weird freeze
-    if (Math.random() > 0.5 && weirdFreezeFrame < frame) {
+    if (Math.random() > 0.95 && weirdFreezeFrame < frame) {
         weirdFreezeFrame = frame + 2;
         let posX = Math.random() * CW*0.9;
         let posY = Math.random() * CH*0.9;
@@ -1186,8 +1326,13 @@ function drawPostprocess(r) {
 /// GAME.
 
 
+
 function draw() {
-    const currentFrameMoment = recomputeFrame();
+    let currentFrameMoment = recomputeFrame();
+    let globalFrameMoment = currentFrameMoment;
+    if (currentMode.type !== 'STAGE') {
+        currentFrameMoment = 0;
+    }
     clear();
     camera.render(currentFrameMoment);
     drawBackground(currentFrameMoment);
@@ -1196,12 +1341,29 @@ function draw() {
     drawBullets(currentFrameMoment);
     drawPlayer(currentFrameMoment);
     drawGoal(0, 0, currentFrameMoment);
-    drawPostprocess(currentFrameMoment);
+
+    if (currentMode.type === 'TEXT') {
+        drawTextFrame(globalFrameMoment);
+    }
+
+    if (currentMode.type === 'STAGE_TRANSITION') {
+        drawStageTransition(globalFrameMoment);
+    }
+
+    drawPostprocess(globalFrameMoment);
 
     requestAnimationFrame(draw);
 }
 
 draw();
+enterTextMode([
+    'Welcome to the cyberspace',
+    'You must be the new one.',
+    'There have been a blackout in your world and everything went offline',
+    'Now you have to fight your way through the cyberspace to restore the connection!',
+    'It\'s usually a calm place but we are experiencing glitch invasion right now so please proceed with causion.',
+    'Good luck!'
+]);
 
 
 
@@ -1209,16 +1371,6 @@ draw();
     
 // }
 
-
-// const gameModes = [
-//     {
-//         name: 'INTO',
-//         fn: introFn
-//     },
-//     {
-//         name: 'STAGE',
-//     }
-// ];
 
 // let currentMode = 0;
 
@@ -1234,15 +1386,12 @@ draw();
 // }
 
 
-
-
-
-
-
-
 document.addEventListener('keyup', function(e) {
     if (e.key === 'z') {
         player.isShieldActive = false;
+        keys.isZ = false;
+    } else if (e.key === 'x') {
+        keys.isX = false;
     }
 });
 
@@ -1264,17 +1413,22 @@ document.addEventListener('keydown', function(e) {
         case 'X':
         case 'x':
             player.fire();
+            keys.isX = true;
             break;
         case 'z':
             player.isShieldActive = true;
+            player.isZ = true;
             break;
         case '+':
             changeScale(s+10);
             break;
+        case 'Enter':
+            enterTextMode(['Text mode test'])
+            break;
         case '-':
         changeScale(s-10);
     }
-})
+});
 
 // window.addEventListener('mousemove', function(e) {
 //     const ratio = ((e.clientY / window.document.body.offsetHeight) - 0.5) * 2;
