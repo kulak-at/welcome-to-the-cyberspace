@@ -1,4 +1,5 @@
 import Noise from './noise'
+import OSC from './Osc';
 
 const canvas = document.querySelector('canvas')
 const c = canvas.getContext('2d');
@@ -508,19 +509,50 @@ function explosionSound() {
 // window.ss = shotSound
 
 class Music {
-    constructor(loop) {
+    constructor(loop, params) {
         var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        var oscillator = audioCtx.createOscillator();
-        oscillator.type = 'sawtooth';
+        // var oscillator = audioCtx.createOscillator();
+        // oscillator.type = 'sawtooth';
 
-        this.o = oscillator;
+        // this.o = oscillator;
         this.a = audioCtx;
 
         this.l = loop;
-        this.lastT = null;
+        // this.lastT = null;
 
-        oscillator.connect(audioCtx.destination);
-        oscillator.start();
+        // oscillator.connect(audioCtx.destination);
+        // oscillator.start();
+        this.n = OSC(audioCtx.destination, /*{
+            "osc1type": "sawtooth",
+            "osc1vol": 0.37,
+            "osc1tune": 0,
+            "osc2type": "triangle",
+            "osc2vol": 0.5,
+            "osc2tune": 6.6,
+            "osc3type": "triangle",
+            "osc3vol": 0.5,
+            "osc3tune": -8.5,
+            "attack": 0,
+            "decay": 0.87,
+            "sustain": 0.5,
+            "susdecay": 1,
+            "cutoff": 36
+         }*/{
+   "osc1type": "sine",
+   "osc1vol": 0.2,
+   "osc1tune": 0,
+   "osc2type": "square",
+   "osc2vol": 0.1,
+   "osc2tune": 12,
+   "osc3type": "sine",
+   "osc3vol": 0.05,
+   "osc3tune": -12,
+   "attack": 0,
+   "decay": 0.3,
+   "sustain": 0.5,
+   "susdecay": 1,
+   "cutoff": 36
+});
     }
 
     start() {
@@ -533,7 +565,9 @@ class Music {
 
         this.l.map((l) => {
             let d = l[0]*BAR_TIME / 4;
-            this.o.frequency.setValueAtTime(l[1]*window.Z, t); // value in hertz
+            this.n.noteOn(l[1]*5, 50, t);
+            this.n.noteOff(t+d-0.001);
+            // this.o.frequency.setValueAtTime(l[1]*window.Z, t); // value in hertz
             t+=d;
         });
         this.lastT = t;
@@ -607,20 +641,38 @@ const bass = (hz) => {
 // ])
 // mus2.start();
 
-const duration = 4;
+const dr = 4;
+const sg = 0.5;
 
-const st = new Music([
-    [duration, 65.4], // c e g b c
-    [duration, 82.4],
-    [duration, 98.0],
-    [duration, 123.5],
-    [duration, 130.8],
-    [duration, 123.5],
-    [duration, 98.0],
-    [duration, 82.4]
+// const st = new Music([
+//     [duration, 65.4], // c e g b c
+//     [duration, 82.4],
+//     [duration, 98.0],
+//     [duration, 123.5],
+//     [duration, 130.8],
+//     [duration, 123.5],
+//     [duration, 98.0],
+//     [duration, 82.4]
+// ])
+
+// st.start();
+
+const bs = new Music([
+    [dr-sg, 65.4], // c
+    [sg, 0],
+    [dr, 65.4], // c
+    [4*dr, 0], // pause
+    [dr-sg, 77.78], // Eb
+    [sg, 0],
+
+    [dr-sg, 77.78],
+    [2*dr, 0],
+    [dr-sg, 68.29], // Db
+    [sg, 0],
+    [dr, 68.29], // Db
+    [2*dr, 0], // pause
 ])
-
-st.start();
+bs.start();
 
 function isOccupied(x, y) {
     return false;
