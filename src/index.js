@@ -9,6 +9,10 @@ c.translate.apply(c, camPos);
 let fixSize = 2;
 let D = 100032.4524;
 let E = 3.3262;
+const RC = [170, 170, 170];
+
+let START_SPAWN = false;
+
 
 let frame = 0;
 const FRAME_LENGTH = 100;
@@ -27,7 +31,24 @@ function getNoise(x,y) {
 }
 
 function isTile(x, y) {
+
+    if (Math.abs(x) % 60 > 57 || Math.abs(y) % 60 > 57) {
+        return isBridge(x, y);
+    }
+
     return (x >= -52 && x <= -49 && y >=8 && y <= 11) || (getNoise(x,y) < 0.2 || getNoise(x, y) > 0.8) && !(2*x>3*y) && (2*x*y<x+y+10 ) && !(x-30)*(x-30)+(y-10)*(y-10)>1;
+}
+
+function isBridge(x, y) {
+    let ax = Math.abs(x);
+    let ay = Math.abs(y);
+    if (ax % 60 > 57 || ay % 60 > 57) {
+        if ((ax%60) % 19 > 17 || (ay%60)%19 > 17) {
+            return true;
+        }
+        return false;
+    }
+    return false;
 }
 
 function isPartOfDataStream(x, y) {
@@ -91,6 +112,8 @@ function drawTextFrame(r) {
         // FIXME: wait for the close sign.
         if (currentMode.nextText.length) {
             enterTextMode(currentMode.nextText, true);
+        } else if (!player.health) {
+            location.reload();
         } else {
             enterStageTransitionMode();
         }
@@ -108,82 +131,145 @@ function drawTextFrame(r) {
     drawTextfield(currentMode.currentText);
 }
 
-const triggers = [
-    {
-        x: (x) => true,
-        y: (y) => y === 11,
-        used: false,
-        trigger: () => enterTextMode([
-            'This is our main datastream.',
-            'All the information on the internet runs through here',
-            'Behind this bridge you can find many unpleastant things',
-            'Viruses, bots, swarms of data',
-            'Be prepared',
-            'You can use your gun by pressing X',
-            'Your shield can be activated by using Z'
-        ])
-    }
-]
-
-
-function computeTriggers(x, y) {
-    triggers.forEach(t => {
-        if (t.x(x) && t.y(y) && !t.used) {
-            t.trigger();
-            t.used = true;
-        }
-    });
-}
-
-
-
-
-
-// BOT CLASS
-class Bot {
+class Obj {
     constructor(x, y) {
-        this.health = 5;
         this.x = x;
         this.y = y;
         this.a = [0,0];
         this.d = [0, 1];
-        this.isDying = false;
-        this.isHit = false;
+        this._scheme = null;
     }
 
-    render(r) {
-        let a = this.pos(r);
-        // return convertToDraw(ROBOT_SCHEME, a.x, a.y);
-        let scheme = ROBOT_SCHEME_NEW.slice();
+    preRender(scheme, t) {
+        return scheme;
+    }
+
+    render(t) {
+        let scheme = this._scheme(t).slice().map(s => s.slice());
+        scheme = this.preRender(scheme, t);
 
         if (this.isHit) {
-            let q = r;
+            let q = t;
             if (q > 0.5) {
                 q = 1-q;
             }
             scheme = scheme.map(s => {
-                s = s.slice();
                 s[6] = shade(s[6], [255,0,0], q)
                 return s;
             })
         }
 
         if (this.isDying) {
-            let q = r;
+            let q = t;
             scheme = scheme.map(s => {
-                s = s.slice();
-                s[6] = shade(s[6], [255,100,0], r)
-                s[6][3] = r;
-                console.log(s[6])
-                // FIXME: no idea why this works.
+                s[6] = shade(s[6], [255,100,0], t)
+                s[6][3] = t;
                 const RT = 1.5;
-                s[3] *= RT*(1+(1-r));
-                s[4] *= RT*(1+(1-r));
-                s[5] *= RT*(1+(1-r));
-                console.log('DYING',r)
+                s[3] *= RT*(1+(1-t));
+                s[4] *= RT*(1+(1-t));
+                s[5] *= RT*(1+(1-t));
                 return s;
             })
         }
+
+        let a = this.pos(t);
+        return convertDrawNew(scheme, a.x, a.y, this.d);
+    }
+
+    pos(r) {
+        let dx = (r)*this.a[0];
+        let dy = (r)*this.a[1];
+        return {x: this.x  - dx, y: this.y - dy}
+    }
+
+}
+
+class Health extends Obj {
+    constructor(x, y) {
+        super(x,y);
+        this._scheme = () => getHeart();
+        this.ct = 'H';
+    }
+}
+
+class Coin extends Obj {
+    constructor(x,y) {
+        super(x,y);
+        this._scheme = getCoin;
+        this.ct = 'C';
+    }
+}
+
+class Enemy extends Obj {
+    constructor(x, y) {
+        super(x, y);
+        this.health = 1;
+        this.isDying = false;
+        this.isHit = false;
+        this._moveRatio = 0;
+        this._fireRatio = 0;
+    }
+
+    isMoving() {
+        return this.a[0] + this.a[1] !== 0;
+    }
+
+    update() {
+        this.a = [0,0];
+        if (Math.random() < this._moveRatio) {
+            // decided to move ass
+            let a = [0, 0];
+            let r = Math.random();
+            if (r > 0.75) {
+                a[0]++;
+            } else if(r > 0.5) {
+                a[0]--;
+            } else if (r > 0.25) {
+                a[1]++;
+            } else {
+                a[1]--;
+            }
+            if (isTile(this.x+a[0], this.y+a[1])) {
+                this.x += a[0];
+                this.y += a[1];
+                this.a = a;
+                this.d = a;
+            }
+        }
+
+        if (Math.random() < this._fireRatio) {
+            this.fire();
+        }
+    }
+
+    hit() {
+        if (--this.health <= 0) {
+            this.isDying = true;
+            explosionSound();
+        } else {
+            this.isHit = true;
+        }
+        
+    }
+
+    fire() {
+        bullets.push(new Bullet(this.x, this.y, this.d));
+        shotSound();
+    }    
+}
+
+
+// BOT CLASS
+class Bot extends Enemy {
+    constructor(x, y) {
+        super(x,y);
+        this.health = 3;
+        this._scheme = getRobot;
+        this._moveRatio = 0.5;
+        this._fireRatio = 0.05;
+    }
+
+    preRender(scheme, r) {
 
         if (this.isMoving()) {
             scheme[0] = scheme[0].slice();
@@ -206,64 +292,68 @@ class Bot {
 
             }
         }
-
-        return convertDrawNew(scheme, a.x, a.y, this.d);
-    }
-
-    isMoving() {
-        return this.a[0] + this.a[1] !== 0;
-    }
-
-    pos(r) {
-        let dx = (r)*this.a[0];
-        let dy = (r)*this.a[1];
-        return {x: this.x  - dx, y: this.y - dy}
-    }
-
-    update() {
-        this.a = [0,0];
-        // return; // FIXME: just to make them stand still
-        if (Math.random() > 0.2) {
-            // decided to move ass
-            let a = [0, 0];
-            let r = Math.random();
-            if (r > 0.75) {
-                a[0]++;
-            } else if(r > 0.5) {
-                a[0]--;
-            } else if (r > 0.25) {
-                a[1]++;
-            } else {
-                a[1]--;
-            }
-            if (isTile(this.x+a[0], this.y+a[1])) {
-                this.x += a[0];
-                this.y += a[1];
-                this.a = a;
-                this.d = a;
-            }
-        }
-
-        if (Math.random() > 0.95) {
-            this.fire();
-        }
-    }
-
-    hit() {
-        if (--this.health <= 0) {
-            this.isDying = true;
-            explosionSound();
-        } else {
-            this.isHit = true;
-        }
-        
-    }
-
-    fire() {
-        bullets.push(new Bullet(this.x, this.y, this.d));
-        shotSound();
+        return scheme;
     }
 }
+
+class Virus extends Enemy {
+    constructor(x,y) {
+        super(x,y);
+        this._scheme = getVirus;
+        this._moveRatio = 0.1;
+    }
+}
+
+
+const ALLOWED_FOES = [Virus];
+
+const triggers = [
+    {
+        t: (x, y) => y === 11,
+        used: false,
+        trigger: () => {
+            enterTextMode([
+                'This is our main datastream.',
+                'All the information on the internet runs through here',
+                'Behind this bridge you can find many unpleastant things',
+                'Viruses, bots, swarms of data',
+                'Be prepared',
+                'You can use your gun by pressing X',
+                'Your shield can be activated by using Z'
+            ]);
+            START_SPAWN = true;
+        }
+    },
+    {
+        t: () => player.coins >= 5,
+        used: false,
+        trigger: function() {
+            ALLOWED_FOES.push(Bot);
+            enterTextMode([
+                'You have collected some coins',
+                'Now you can face more powerful foes.'
+            ]);
+        }
+    },
+    {
+        t: () => !player.health,
+        trigger: function() {
+            enterTextMode(['G A M E  O V E R', 'You have gathered ' + player.coins + ' coins!']);
+        }
+    }
+]
+
+
+function computeTriggers(x, y) {
+    triggers.forEach(t => {
+        if (t.t(x,y) && !t.used) {
+            t.trigger();
+            t.used = true;
+        }
+    });
+}
+
+
 
 function generateSwarm(r) {
     let scheme = SWARM_NEW.slice();
@@ -280,25 +370,21 @@ function generateSwarm(r) {
     })
 }
 
-class Player extends Bot {
+class Player extends Enemy {
     constructor(x, y) {
         super(x, y);
         this._nextA = [0, 0];
+        this.health = 5;
         this.isShieldActive = false;
+        this.coins = 0;
+        this._scheme = (r) => getPlayer(this.d);
     }
-    render(r) {
-        // console.log('DIRECTION', this.d);
-        // Bot.prototype.render.call(this, r);
-        // convertToDraw(ROBOT_SCHEME, a.x, a.y);
-        let scheme = getVirus(getMultiframePosition(50, frame,r));
-
-        // convertDrawNew(PLAYER_SCHEME_NEW, this.pos(r).x, this.pos(r).y, this.d);
-        convertDrawNew(scheme, this.pos(r).x, this.pos(r).y, this.d);
+    preRender(scheme, r) {
 
         if (this.isShieldActive) {
-            console.log('SHIELD');
-            convertDrawNew(SHIELD, this.pos(r).x, this.pos(r).y, this.d)
+            return [...scheme, ...SHIELD];
         }
+        return scheme;
     }
     update() {
         this.x += this._nextA[0];
@@ -317,6 +403,15 @@ class Player extends Bot {
         }
 
         return false;
+    }
+
+    collect(c) {
+        if (c.ct === 'H' && this.health < 5) {
+            this.health++;
+        }
+        if (c.ct === 'C') {
+            this.coins++;
+        }
     }
 }
 window.c = c;
@@ -340,7 +435,7 @@ let player = new Player(0, 0);
 let camera = new Camera(player);
 
 const BULLET_LIFETIME = 8;
-const BULLET_SPEED = 1;
+const BULLET_SPEED = 3;
 class Bullet {
     constructor(x, y, a) {
         this.x = x + a[0];
@@ -352,9 +447,9 @@ class Bullet {
 
     render(r) {
         if (this.deactivated) { return; }
-        let dx = r*this.a[0]*BULLET_SPEED;
-        let dy = r*this.a[1]*BULLET_SPEED;
-        drawBullet(this.x-dx, this.y-dy);
+        let dx = (1-r)*this.a[0]*BULLET_SPEED;
+        let dy = (1-r)*this.a[1]*BULLET_SPEED;
+        drawBullet(this.x+dx, this.y+dy);
     }
 
     update() {
@@ -514,18 +609,18 @@ const bass = (hz) => {
 
 const duration = 4;
 
-// const st = new Music([
-//     [duration, 65.4], // c e g b c
-//     [duration, 82.4],
-//     [duration, 98.0],
-//     [duration, 123.5],
-//     [duration, 130.8],
-//     [duration, 123.5],
-//     [duration, 98.0],
-//     [duration, 82.4]
-// ])
+const st = new Music([
+    [duration, 65.4], // c e g b c
+    [duration, 82.4],
+    [duration, 98.0],
+    [duration, 123.5],
+    [duration, 130.8],
+    [duration, 123.5],
+    [duration, 98.0],
+    [duration, 82.4]
+])
 
-// st.start();
+st.start();
 
 function isOccupied(x, y) {
     return false;
@@ -537,13 +632,8 @@ let bullets = [];
 
 // Make bots
 let bots = []
-while(bots.length<20) {
-    var x = Math.floor(-50 * Math.random() + 20);
-    var y = Math.floor(-50 * Math.random() + 20);
-    if (isTile(x, y)) {
-        bots.push(new Bot(x, y));
-    }
-}
+
+let pups = [];
 
 
 
@@ -563,7 +653,7 @@ function getPosition(x, y, dx=0, dy=0) {
     ]
 }
 
-function drawTop(x, y, color, w=1, h=1, dx = 0, dy = 0, borderColor = color) {
+function drawTop(x, y, color, w=1, h=1, dx = 0, dy = 0, borderColor) {
     c.beginPath();
     c.moveTo.apply(c, getPosition(x,y, dx, dy))
     c.lineTo.apply(c, getPosition(x-w, y, dx, dy));
@@ -571,10 +661,12 @@ function drawTop(x, y, color, w=1, h=1, dx = 0, dy = 0, borderColor = color) {
     c.lineTo.apply(c, getPosition(x, y-h, dx, dy));
     c.closePath();
     c.lineWidth = fixSize;
-    c.strokeStyle = borderColor;
     c.fillStyle = color;
     c.fill();
-    c.stroke();
+    if (borderColor) {
+        c.strokeStyle = borderColor;
+        c.stroke();
+    }
 }
 
 function drawRight(x, y, color, w, h, dx = 0, dy = 0, borderColor = color) {
@@ -590,9 +682,11 @@ function drawRight(x, y, color, w, h, dx = 0, dy = 0, borderColor = color) {
     c.closePath();
     c.fillStyle = color;
     c.fill();
-    c.lineWidth = fixSize;
-    c.strokeStyle = borderColor;
-    c.stroke();
+    if (borderColor) {
+        c.lineWidth = fixSize;
+        c.strokeStyle = borderColor;
+        c.stroke();
+    }
 }
 
 function drawLeft(x, y, color, w, h, dx = 0, dy = 0, borderColor = color) {
@@ -609,9 +703,11 @@ function drawLeft(x, y, color, w, h, dx = 0, dy = 0, borderColor = color) {
 
     c.fillStyle = color;
     c.fill();
-    c.lineWidth = fixSize;
-    c.strokeStyle = borderColor;
-    c.stroke();
+    if (borderColor) {
+        c.lineWidth = fixSize;
+        c.strokeStyle = borderColor;
+        c.stroke();
+    }
 }
 
 function col(c) {
@@ -641,15 +737,15 @@ function lighten(color, alpha) {
 }
 
 
-function drawBox(x, y, color = [128,128,128], w = 1, d = 1, h = 1, raise = 0, calculateFromTop = false, borderColor) {
-    let dy = 0;
+function drawBox(x, y, color = [128,128,128], w = 1, d = 1, h = 1, raise = 0, calculateFromTop = false, borderColor, ddx = 0, ddy = 0) {
+    let dy = ddy;
     if (calculateFromTop) {
         dy = -h*s;
     }
     dy -= raise * s;
-    drawTop(x, y, col(color), w, d, 0, dy, borderColor);
-    drawLeft(x, y, col(lighten(color, ALPHA)), w, h, 0, dy, borderColor);
-    drawRight(x, y, col(darken(color, ALPHA)), d, h, 0, dy, borderColor);
+    drawTop(x, y, col(color), w, d, ddx, dy, borderColor);
+    drawLeft(x, y, col(lighten(color, ALPHA)), w, h, ddx, dy, borderColor);
+    drawRight(x, y, col(darken(color, ALPHA)), d, h, ddx, dy, borderColor);
 }
 
 const cM = 5;
@@ -668,7 +764,7 @@ function convertToDraw(rec, x, y, dir = [0, 1]) {
 }
 
 
-function convertDrawNew(rec, x, y, dir) { // [x, y, z, w, d, h, col]
+function convertDrawNew(rec, x, y, dir, dx = 0, dy = 0) { // [x, y, z, w, d, h, col]
     // console.log('DIRECTION', dir);
 
     // if (dir[0]) {
@@ -711,14 +807,26 @@ function convertDrawNew(rec, x, y, dir) { // [x, y, z, w, d, h, col]
         })
     }
 
-    // const f = (x) => {
-    //     const p = getPosition(x[0] + x[3]/2, x[1]+x[4]/2);
-    //     return p[0] - p[1] - x[2] - x[5]/2;
-    // }
+    const f = (x) => {
+        const p = getPosition(x[0] + x[3]/2, x[1]+x[4]/2);
+        return p[2] + p[0] + p[1];
+    }
+
+    const orderFn = (a, b) => {
+        let res = [-1,-1,1];
+        for(var i=0;i<3;i++) {
+            if (a[0+i] - a[3+i] >= b[0+i] + b[3+i]) {
+                return -res[i];
+            } else if (b[0+i] - b[3+i] >= a[0+i] + a[3+i]) {
+                return res[i];
+            }
+        }
+        return -1;
+    }
 
     // const f = x => x[0];
 
-    // rec = rec.sort((x,y) => f(x) - f(y));
+    rec = rec.sort(orderFn);
 
 
     rec.map(r => {
@@ -758,7 +866,7 @@ function convertDrawNew(rec, x, y, dir) { // [x, y, z, w, d, h, col]
         // console.log(dir);
 
         // console.log('DRAW', x - xx + w/2, y - yx + d/2, col, w, d, h, z - h/2, false);
-        drawBox(x - xx + w/2, y - yx + d/2, col, w, d, h, z + h/2, false);
+        drawBox(x - xx + w/2, y - yx + d/2, col, w, d, h, z + h/2, false, false, dx, dy);
     })
 }
 
@@ -774,7 +882,6 @@ function convNew(scheme) {
         return [xx - w/2, yx - d/2, z - h/2, w, d, h, col];
     })
 }
-const RC = [170, 170, 170];
 
 const wtf_SCHEME_NEW = [
     // [0.5,0.5,0.5, 1, 1, 1, RC],
@@ -794,40 +901,116 @@ const wtf_SCHEME_NEW = [
 
 const PC = [200, 180, 150]
 
-const PLAYER_SCHEME_NEW = [
-    // [0.5,0.5,0.5, 1, 1, 1, RC],
-    // [0.5, 0.5, 1.25, 0.5, 0.5, 0.5, [255, 0, 0]]
-    [0.35, 0.425, 0.05, 0.05, 0.2, 0.05, PC],
-    [0.35, 0.5, 0.15, 0.05, 0.05, 0.2, PC],
+function getPlayer(dir) {
+    const p = [
+        [0.65, 0.4, 0.4, 0.05, 0.2,0.05, [90,70,200]],
+        // [0.5,0.5,0.5, 1, 1, 1, RC],
+        // [0.5, 0.5, 1.25, 0.5, 0.5, 0.5, [255, 0, 0]]
+        [0.35, 0.425, 0.05, 0.05, 0.2, 0.05, PC],
+        [0.35, 0.5, 0.15, 0.05, 0.05, 0.2, PC],
 
-    [0.55, 0.425, 0.05, 0.05, 0.2, 0.05, PC],
-    [0.55, 0.5, 0.15, 0.05, 0.05, 0.2, PC],
+        [0.55, 0.425, 0.05, 0.05, 0.2, 0.05, PC],
+        [0.55, 0.5, 0.15, 0.05, 0.05, 0.2, PC],
 
-    // belly
-    [0.5, 0.5, 0.4, 0.2, 0.2, 0.4, [40, 70, 150]],
-    // head
-    [0.5, 0.5, 0.7, 0.3, 0.3, 0.3, PC],
+        // belly
+        [0.5, 0.5, 0.4, 0.2, 0.2, 0.4, [90, 70, 150]],
+        // head
+        [0.5, 0.5, 0.7, 0.3, 0.3, 0.3, PC],
+        [0.5, 0.5, 0.85, 0.3, 0.3, 0.01, [140, 70, 45]],
 
-    // eye
+        // hand
+        [0.35, 0.4, 0.4, 0.05, 0.2,0.05, [90,70,200]],
+        // eye
 
-    // [0.5, 0.4, 1.0, 0.2, 0.001, 0.1, [255, 0, 0]]
-]
+        // [0.5, 0.4, 1.0, 0.2, 0.001, 0.1, [255, 0, 0]]
+    ]
+    let dirs = [[dir[0], dir[1]], [dir[1], dir[0]]];
+    if (dir[0] > 0) {
+        dirs = [[1,0], [0,-1]];
+    }
+    if (dir[1] < 0) {
+        dirs = [[-1, 0], [0,1]];
+    }
+    if (dir[0]+dir[1] > 0) {
 
-for(var i=10;i>0;i--) {
-    for(var j=10;j>0;j--) {
-        const size = Math.random()*0.1;
-        const x = 0+i*0.03;
-        const y = 0.5+j*0.03;
-        PLAYER_SCHEME_NEW.push([
-            x,
-            y,
-            0.70-size/2,
-            0.03,
-            0.03,
-            size,
-            [140,70,45]
+       p.push([0.45, 0.35, 0.7, 0.05, 0.001, 0.05, [0, 0, 0]]);
+       p.push([0.6, 0.35, 0.7, 0.05, 0.001, 0.05, [0, 0, 0]]);
+    p.push([0.525, 0.35, 0.6, 0.03, 0.001, 0.03, [200, 60, 50]]);
+    }
+    for(let d of dirs) {
+        for(var i=0;i<10;i++) {
+            let siz = 0.03;
+            let len = (Math.sin(i+1.4)+1)*0.05+0.05;
+            p.push([
+                0.5 + !!d[0]*(-0.15 + 0.0015+ i*0.03) - 0.15 * d[1],
+                0.5 + !!d[1]*(-0.15 + 0.0015 + i*0.03) - 0.15 * d[0],
+                0.87 - len/2,
+                0.01,
+                0.03,
+                len,
+                [140,70,45]
+            ])
+        }
+    }
+    return p;
+}
+
+// for(var i=10;i>0;i--) {
+//     for(var j=10;j>0;j--) {
+//         const size = Math.random()*0.1;
+//         const x = 0.5+i*0.03;
+//         const y = 0.5+j*0.03;
+//         PLAYER_SCHEME_NEW.push([
+//             x,
+//             y,
+//             0.70+0.15-size/2,
+//             0.03,
+//             0.03,
+//             size,
+//             [140,70,45]
+//         ])
+//     }
+// }
+
+
+function getHeart(isOff) {
+    let x = [];
+    let color = [200, 0, 0];
+    if (isOff) {
+        color = [100, 100, 100, 0.8];
+    }
+    for(let i=0;i<5;i++) {
+        x.push([
+                0.5,
+                0.5,
+                0.05*i,
+                0.05+i*0.1,
+                0.1,
+                0.05,
+                color
         ])
     }
+    for(let i=5;i<8;i++) {
+        x.push([
+            0.35,
+            0.5,
+            0.05*i,
+            0.25 - (i-5)*0.05,
+            0.1,
+            0.05,
+            color
+        ])
+        x.push([
+            0.65,
+            0.5,
+            0.05*i,
+            0.25 - (i-5)*0.05,
+            0.1,
+            0.05,
+            color
+        ])
+    }
+    return x;
 }
 
 const SWARM_NEW = [
@@ -849,6 +1032,7 @@ for(let j=0;j<5;j++) {
 }
 
 function getVirus(r) {
+    r = getMultiframePosition(15, frame, r);
     let v = [
         // [0.5, 0.5, 0.5, 0.2, 0.2, 0.2, [20, 200, 20]]
     ];
@@ -896,11 +1080,6 @@ function getMultiframePosition(multi, frame, r) {
 //     [255,0,0]
 // ])
 
-PLAYER_SCHEME_NEW.push([0.45, 0.35, 0.7, 0.05, 0.001, 0.05, [0, 0, 0]]);
-PLAYER_SCHEME_NEW.push([0.6, 0.35, 0.7, 0.05, 0.001, 0.05, [0, 0, 0]]);
-PLAYER_SCHEME_NEW.push([0.525, 0.35, 0.6, 0.03, 0.001, 0.03, [200, 60, 50]]);
-
-window.P = PLAYER_SCHEME_NEW;
 
 // const ROBOT_SCHEME = [
 //     // leg ??
@@ -929,61 +1108,29 @@ window.P = PLAYER_SCHEME_NEW;
 //     [0.2, 0.3, [20, 20, 20], 0.1, 0.1, 0.1, 0.6, true],
 //     [0.2, 0.6, darken(RC, 0.2), 0.1, 0.1, 0.2, 0.7, true]
 // ];
+function getRobot() {
+        return [
+        // [0.5,0.5,0.5, 1, 1, 1, RC],
+        // [0.5, 0.5, 1.25, 0.5, 0.5, 0.5, [255, 0, 0]]
+        [0.3, 0.4, 0.05, 0.1, 0.3, 0.1, RC],
+        [0.3, 0.5, 0.3, 0.1, 0.1, 0.4, RC],
 
-const ROBOT_SCHEME_NEW = [
-    // [0.5,0.5,0.5, 1, 1, 1, RC],
-    // [0.5, 0.5, 1.25, 0.5, 0.5, 0.5, [255, 0, 0]]
-    [0.3, 0.4, 0.05, 0.1, 0.3, 0.1, RC],
-    [0.3, 0.5, 0.3, 0.1, 0.1, 0.4, RC],
+        [0.6, 0.4, 0.05, 0.1, 0.3, 0.1, RC],
+        [0.6, 0.5, 0.3, 0.1, 0.1, 0.4, RC],
 
-    [0.6, 0.4, 0.05, 0.1, 0.3, 0.1, RC],
-    [0.6, 0.5, 0.3, 0.1, 0.1, 0.4, RC],
-
-    // belly
-    [0.5, 0.5, 0.6, 0.4, 0.4, 0.6, RC],
-    // head
-    [0.5, 0.5, 1.0, 0.2, 0.2, 0.2, RC],
-    [0.5, 0.4, 1.0, 0.2, 0.001, 0.1, [255, 0, 0]]
-]
+        // belly
+        [0.5, 0.5, 0.6, 0.4, 0.4, 0.6, RC],
+        // head
+        [0.5, 0.5, 1.0, 0.2, 0.2, 0.2, RC],
+        [0.5, 0.4, 1.0, 0.2, 0.001, 0.1, [255, 0, 0]]
+    ]
+}
 
 // const ROBOT_SCHEME_NEW = convNew(ROBOT_SCHEME);
 
 const SHIELD = [
     [0.5, 0.1, 0.5, 1, 0.01, 1, [50, 50, 200, 0.5]]
-    // [0.3, 0.2, [50, 50, 200, 0.5], 0.8, 0.01, 0.8, 1.1],
 ]
-
-// function drawRobot(x, y) {
-
-//     // FIXME: make drawLeg
-//     const RC = [170, 170, 170]
-//     drawBox(x - 0.3, y - 0.4, RC, 0.1, 0.3, 0.1);
-//     drawBox(x - 0.3, y - 0.6, RC, 0.1, 0.1, 0.5, 0, true);
-
-
-//     // arm 2
-//     drawBox(x - 0.8, y - 0.3, darken(RC, 0.2), 0.1, 0.3, 0.1, 0.6, true);
-//     drawBox(x - 0.8, y - 0.2, [20, 20, 20], 0.1, 0.1, 0.1, 0.6, true);
-//     drawBox(x - 0.8, y - 0.5, darken(RC, 0.2), 0.1, 0.1, 0.2, 0.7, true);
-
-//     // body
-//     drawBox(x - 0.7, y - 0.4, RC, 0.1, 0.3, 0.1);
-//     drawBox(x - 0.7, y - 0.6, RC, 0.1, 0.1, 0.5, 0, true);
-//     drawBox(x - 0.3, y - 0.4, RC, 0.6, 0.6, 0.6, 0.5, true);
-
-//     drawBox(x - 0.4, y - 0.5, RC, 0.4, 0.4, 0.4, 1.1, true); // head
-//     drawBox(x - 0.45, y - 0.49, [0,0,0], 0.3, 0.01, 0.2, 1.2, true); // face
-
-//     // eyes
-//     drawBox(x - 0.75, y - 0.59, [0,0,200], 0.05, 0.01, 0.05, 1.2, true); // eye1
-//     drawBox(x - 0.6, y - 0.59, [0,0,200], 0.05, 0.01, 0.05, 1.2, true); // eye2
-
-    
-//     // arm 1
-//     drawBox(x - 0.2, y - 0.4, darken(RC, 0.2), 0.1, 0.3, 0.1, 0.6, true);
-//     drawBox(x - 0.2, y - 0.3, [20, 20, 20], 0.1, 0.1, 0.1, 0.6, true);
-//     drawBox(x - 0.2, y - 0.6, darken(RC, 0.2), 0.1, 0.1, 0.2, 0.7, true);
-// }
 
 function drawBullet(x, y, opacity = 1) {
     drawBox(x - 0.2, y - 0.2, [200, 50, 50, opacity], 0.1, 0.1, 0.1, 0.6, true);
@@ -1025,46 +1172,53 @@ function splitText(text, size=40) {
     return res;
 }
 
-function drawTextfield(text) {
-    const poz = getPosition(player.x, player.y)
+function drawTextfield(text, r = 0, dx=0, dy=0, noFrame, size=20) {
+    const poz = getPosition(player.pos(r).x, player.pos(r).y)
     const layers = [
         [-5, -1, 'red'],
         [5, 3, 'green'],
         [-3, 3, 'blue'],
         [0,0,'#000']
     ];
-    c.font = '20px Courier New';
+    c.font = size + 'px Courier New';
 
     text = splitText(text);
     
     let textWid = Math.max.apply(Math, text.map(t => c.measureText(t).width));
 
     const padding = 20;
-    const hei = 30 * text.length + 2*padding - 10;
+    const hei = (size+10) * text.length + 2*padding - 10;
     const wid = textWid + 2*padding;
-    layers.map(l => {
-        c.beginPath();     
-        c.rect(poz[0]-wid/2 + l[0], poz[1] - padding + l[1] - hei/2, wid, hei);
-        c.fillStyle = l[2];
-        c.fill();
-    });
+    if (!noFrame) {
+        layers.map(l => {
+            c.beginPath();     
+            c.rect(poz[0]-wid/2+dx + l[0], dx +poz[1] - padding + l[1] - hei/2, wid, hei);
+            c.fillStyle = l[2];
+            c.fill();
+        });
+    }
 
     text.map((t,i) => {
 
         const ls = [[-2, 0, 'red'], [3, 1, 'green'], [2, -1, 'blue'],[0,0, 'white']];
         ls.map(l => {
             c.fillStyle = l[2];
-            c.fillText(t, poz[0]-wid/2 + padding + l[0], poz[1] + 20 + l[1] + i*30 - hei/2);
+            c.fillText(t, dx+poz[0]-wid/2 + padding + l[0], dy+poz[1] + 20 + l[1] + i*30 - hei/2);
         });
     });
 }
 
 
 function drawMap(r) {
-    for(let i=player.x-20;i<player.x+20;i++) {
-        for(let j=player.y-20;j<player.y+20;j++) {
+    const mapSize = 10;
+    for(let i=player.x-mapSize;i<player.x+mapSize;i++) {
+        for(let j=player.y-mapSize;j<player.y+mapSize;j++) {
             if (isTile(i,j)) {
-                drawBox(i,j,[0, 0, 0, 0.9], 1, 1, 0.8, 0, false, grd2);
+                if (isBridge(i,j)) {
+                    drawBox(i,j,[100, 100, 100, 0.9], 1, 1, 0.8, 0, false, grd2);
+                } else {
+                    drawBox(i,j,[0, 0, 0, 0.9], 1, 1, 0.8, 0, false, grd2);
+                }
             } else if (isPartOfDataStream(i,j)) {
                 const f = ((frame%10)/10 + r/100);
                 drawBox(i+0.4+f, j+0.4+Math.sin(f*Math.PI)*0.2, [50,255,0, 0.8], 0.2, 0.2, 0.2, false, false, 'rgba(0,0,0,0)');
@@ -1141,17 +1295,6 @@ function drawBackground(r) {
     let sunY = sm[1] + CH/3;
     let sunR =  CH/4;
 
-
-    // glow
-    // const glowg = c.createRadialGradient(sunX, sunY, sunR, sunX, sunY, sunR+10);
-    // glowg.addColorStop(0, 'rgba(255,255,0, 0)');
-    // glowg.addColorStop(0.01, 'rgba(255,255,0,1)');
-    // glowg.addColorStop(1, 'rgba(255,255,0,0)');
-    // c.arc(sunX, sunY, sunR+11, 0, 2*Math.PI);
-    // c.fillStyle = glowg;
-    // c.fill();
-
-
     c.beginPath();
     c.arc(sunX, sunY, sunR,0,2*Math.PI);
 
@@ -1216,6 +1359,7 @@ function drawBackground(r) {
 }
 
 function drawEnemies(r) {
+    pups.map(p => p.render(r));
     bots.map(b => b.render(r));
 }
 
@@ -1225,14 +1369,23 @@ function drawBullets(r) {
 
 function computeCollisions() {
     bullets.map(b => {
-        bots.map(bot => {
-            if (b.x === bot.x && b.y === bot.y) {
-                // console.log('HIT');
-                bot.hit();
-                b.togc = true;
+        [...bots, player].map(bot => {
+            for(var i=0;i<BULLET_SPEED;i++) {
+                if (b.x + b.a[0]*i === bot.x && b.y + b.a[1]*i === bot.y) {
+                    // console.log('HIT');
+                    bot.hit();
+                    b.togc = true;
 
+                }
             }
         })
+    })
+    pups = pups.filter(p => {
+        if (p.x === player.x && p.y === player.y) {
+            player.collect(p);
+            return false;
+        }
+        return true;
     })
 }
 
@@ -1246,9 +1399,35 @@ function recomputeFrame() {
     if (now > nextFrame) {
         if (currentMode.type === 'STAGE') {
             bots.map(b => b.isHit = false)
-            bots = bots.filter(b => !b.isDying);
+            player.isHit = false;
+            bots = bots.filter(b => {
+                if (b.isDying) {
+                    let r = Math.random();
+                    if(r < (5-player.health)*0.05) {
+                        pups.push(new Health(b.x, b.y));
+                    } else if(r < 0.7) {
+                        pups.push(new Coin(b.x, b.y));
+                    }
+                }
+                if (Math.abs(player.x -b.x)+Math.abs(player.y - b.y) > 40) {
+                    return false;
+                }
+                return !b.isDying
+            });
             computeCollisions();
             gc();
+
+            if (bots.length < 40 && START_SPAWN) {
+                console.log('Spawning bot');
+                let x = Math.floor(player.x + 5 + Math.random() * 10);
+                let y = Math.floor(player.y+ 5 + Math.random()*15);
+                if (isTile(x, y)) {
+                    let i = Math.floor(ALLOWED_FOES.length * Math.random());
+                    let C = ALLOWED_FOES[i];
+                    bots.push(new C(x, y));
+                }
+            }
+
             // updating all
             bots.map(b => b.update());
             bullets.map(b => b.update());
@@ -1326,6 +1505,25 @@ function drawPostprocess(r) {
 /// GAME.
 
 
+function drawHud(r) {
+    const pos = getPosition(player.pos(r).x, player.pos(r).y, -CW/2, -CH/2);
+    const height = 50;
+    const padding = 20;
+    c.beginPath();
+    c.rect(pos[0], pos[1] + CH - s*3/2, CW, s*3/2);
+    c.fillStyle = 'rgba(0,0,0,0.5)';
+    c.fill();
+    for(var i=0;i<5;i++) {
+        convertDrawNew(getHeart(i>=player.health), player.pos(r).x, player.pos(r).y, [1,0], -CW/2  + i*s+s, CH/2);
+        // c.beginPath();
+        // c.rect(pos[0] + padding + i*(height+padding), pos[1] + CH - height - padding, 50, 50);
+        // c.fillStyle = 'green';
+        // c.fill();
+    }
+    convertDrawNew(getCoin(r), player.pos(r).x, player.pos(r).y, [1,0], +CW/2 - 2*s, CH/2);
+    drawTextfield(''+player.coins, r, CW/2 - s/4*5, CH/2 - 20, true, 40);
+}
+
 
 function draw() {
     let currentFrameMoment = recomputeFrame();
@@ -1341,6 +1539,9 @@ function draw() {
     drawBullets(currentFrameMoment);
     drawPlayer(currentFrameMoment);
     drawGoal(0, 0, currentFrameMoment);
+    if (currentMode.type === 'STAGE') {
+        drawHud(currentFrameMoment);
+    }
 
     if (currentMode.type === 'TEXT') {
         drawTextFrame(globalFrameMoment);
@@ -1356,14 +1557,14 @@ function draw() {
 }
 
 draw();
-enterTextMode([
-    'Welcome to the cyberspace',
-    'You must be the new one.',
-    'There have been a blackout in your world and everything went offline',
-    'Now you have to fight your way through the cyberspace to restore the connection!',
-    'It\'s usually a calm place but we are experiencing glitch invasion right now so please proceed with causion.',
-    'Good luck!'
-]);
+// enterTextMode([
+//     'Welcome to the cyberspace',
+//     'You must be the new one.',
+//     'There have been a blackout in your world and everything went offline',
+//     'Now you have to fight your way through the cyberspace to restore the connection!',
+//     'It\'s usually a calm place but we are experiencing glitch invasion right now so please proceed with causion.',
+//     'Good luck!'
+// ]);
 
 
 
