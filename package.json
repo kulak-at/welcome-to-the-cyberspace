@@ -5,7 +5,13 @@
   "repository": "git@gitlab.com:kulak.technology/13kGames.git",
   "author": "Kacper Kula <kulak@kulak.at>",
   "license": "MIT",
+  "browserslist": "last 2 Chrome versions",
   "devDependencies": {
+    "@babel/cli": "^7.0.0",
+    "@babel/core": "^7.0.0",
+    "@babel/preset-env": "^7.0.0",
+    "babel-preset-env": "^1.7.0",
+    "babel-preset-minify": "^0.4.3",
     "webpack": "^4.16.5",
     "webpack-cli": "^3.1.0"
   },

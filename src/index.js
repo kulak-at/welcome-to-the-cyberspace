@@ -1,5 +1,4 @@
-import Noise from './noise'
-import OSC from './Osc';
+import N from './noise'
 
 const canvas = document.querySelector('canvas')
 const c = canvas.getContext('2d');
@@ -20,15 +19,13 @@ const FRAME_LENGTH = 100;
 let startTime = +(new Date());
 let nextFrame = startTime + FRAME_LENGTH;
 
-window.N = new Noise();
-
 function randomGen(x,y) {
     return Math.sin(x) + Math.cos(y) / 2;
 }
 
 
 function getNoise(x,y) {
-    return N.noise(E*x+D,E*y+D,E*D);
+    return N(E*x+D,E*y+D,E*D);
 }
 
 function isTile(x, y) {
@@ -41,15 +38,9 @@ function isTile(x, y) {
 }
 
 function isBridge(x, y) {
-    let ax = Math.abs(x);
-    let ay = Math.abs(y);
-    if (ax % 60 > 57 || ay % 60 > 57) {
-        if ((ax%60) % 19 > 17 || (ay%60)%19 > 17) {
-            return true;
-        }
-        return false;
-    }
-    return false;
+    let ax = Math.abs(x) % 60;
+    let ay = Math.abs(y) % 60;
+    return (ax > 57 || ay > 57) && (ax % 19 > 17 || ay%19 > 17);
 }
 
 function isPartOfDataStream(x, y) {
@@ -60,9 +51,6 @@ const keys = {
     isX: false,
     isZ: false,
 }
-
-
-
 
 let currentMode = {
     type: 'STAGE',
@@ -201,6 +189,10 @@ class Coin extends Obj {
     }
 }
 
+function playerDistance(b) {
+    return Math.abs(b.x - player.x) + Math.abs(b.y - player.y);
+}
+
 class Enemy extends Obj {
     constructor(x, y) {
         super(x, y);
@@ -243,6 +235,10 @@ class Enemy extends Obj {
         }
     }
 
+    onHealthChange(h) {
+        
+    }
+
     hit() {
         if (--this.health <= 0) {
             this.isDying = true;
@@ -250,12 +246,12 @@ class Enemy extends Obj {
         } else {
             this.isHit = true;
         }
-        
+        this.onHealthChange(this.health);
     }
 
     fire() {
         bullets.push(new Bullet(this.x, this.y, this.d));
-        shotSound();
+        shotSound(playerDistance(this));
     }    
 }
 
@@ -313,6 +309,7 @@ const triggers = [
         t: (x, y) => y === 11,
         used: false,
         trigger: () => {
+            lead.volNext(3);
             enterTextMode([
                 'This is our main datastream.',
                 'All the information on the internet runs through here',
@@ -406,9 +403,20 @@ class Player extends Enemy {
         return false;
     }
 
+    onHealthChange(h) {
+        let v = 0.1 * (5-h);
+        lead2.vol(v);
+        lead3.vol(v);
+    }
+
     collect(c) {
+        if (this.isDying) {
+            return;
+        }
+
         if (c.ct === 'H' && this.health < 5) {
             this.health++;
+            this.onHealthChange(this.health);
         }
         if (c.ct === 'C') {
             this.coins++;
@@ -463,96 +471,83 @@ class Bullet {
     }
 }
 
-const BAR_TIME = 0.25;
+const BAR_TIME = 0.40;
 
-// var a = new (window.AudioContext || window.webkitAudioContext)();
-// var g = a.createGain();
-// var o = a.createOscillator();
-// o.type = 'square';
-// o.connect(g);
-// g.connect(a.destination);
-// o.start();
-// g.gain.linearRampToValueAtTime(0, a.currentTime + 0.01);
+var a = new (window.AudioContext || window.webkitAudioContext)();
+var g = a.createGain();
+var o = a.createOscillator();
+o.type = 'square';
+o.connect(g);
+g.connect(a.destination);
+o.start();
+g.gain.linearRampToValueAtTime(0, a.currentTime + 0.01);
 
-function shotSound() {
-//     g.gain.setValueAtTime(100, a.currentTime);
-//     o.frequency.setValueAtTime(300, a.currentTime)
-//     o.frequency.linearRampToValueAtTime(140, a.currentTime + 0.1)
-//     g.gain.linearRampToValueAtTime(0, a.currentTime + 0.1);
+function shotSound(distance) {
+    if (distance > 10) {
+        return;
+    }
+    g.gain.setValueAtTime(80, a.currentTime);
+    o.frequency.setValueAtTime(300, a.currentTime)
+    o.frequency.linearRampToValueAtTime(140, a.currentTime + 0.1)
+    g.gain.linearRampToValueAtTime(0, a.currentTime + 0.1);
 
-//     // setTimeout(() => {
-//     //     o.stop();
-//     //     o.disconnect();
-//     // }, 1000);
+    // setTimeout(() => {
+    //     o.stop();
+    //     o.disconnect();
+    // }, 1000);
 }
 
 
-// var aa = new (window.AudioContext || window.webkitAudioContext)();
-// var gg = aa.createGain();
-// var oo = aa.createOscillator();
-// oo.type = 'square';
-// oo.connect(gg);
-// gg.connect(aa.destination);
-// oo.start();
-// gg.gain.linearRampToValueAtTime(0, a.currentTime + 0.01);
+var aa = new (window.AudioContext || window.webkitAudioContext)();
+var gg = aa.createGain();
+var oo = aa.createOscillator();
+oo.type = 'square';
+oo.connect(gg);
+gg.connect(aa.destination);
+oo.start();
+gg.gain.linearRampToValueAtTime(0, a.currentTime + 0.01);
 
 function explosionSound() {
-//     gg.gain.setValueAtTime(100, a.currentTime);
-//     for(var i=0;i<10;i++) {
-//         // oo.frequency.linearRampToValueAtTime(140, a.currentTime + i*0.03)
-//         oo.frequency.linearRampToValueAtTime(50, a.currentTime + i*0.01 + 0.01)
-//     }x
-//     // o.frequency.linearRampToValueAtTime(300, a.currentTime + 0.7)
-//     gg.gain.linearRampToValueAtTime(0, a.currentTime + 0.15);
+    gg.gain.setValueAtTime(100, a.currentTime);
+    for(var i=0;i<10;i++) {
+        // oo.frequency.linearRampToValueAtTime(140, a.currentTime + i*0.03)
+        oo.frequency.linearRampToValueAtTime(50, a.currentTime + i*0.01 + 0.01)
+    }
+    // o.frequency.linearRampToValueAtTime(300, a.currentTime + 0.7)
+    gg.gain.linearRampToValueAtTime(0, a.currentTime + 0.15);
 }
 
 // window.ss = shotSound
 
 class Music {
-    constructor(loop, params) {
+    constructor(loop, semi, type, volume = 100) {
         var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        // var oscillator = audioCtx.createOscillator();
-        // oscillator.type = 'sawtooth';
+        var oscillator = audioCtx.createOscillator();
+        var g = audioCtx.createGain();
+        oscillator.type = type;
+        
 
-        // this.o = oscillator;
+        this.o = oscillator;
         this.a = audioCtx;
+        this.semi = semi*1.0595;
 
         this.l = loop;
-        // this.lastT = null;
+        this.lastT = null;
 
-        // oscillator.connect(audioCtx.destination);
-        // oscillator.start();
-        this.n = OSC(audioCtx.destination, /*{
-            "osc1type": "sawtooth",
-            "osc1vol": 0.37,
-            "osc1tune": 0,
-            "osc2type": "triangle",
-            "osc2vol": 0.5,
-            "osc2tune": 6.6,
-            "osc3type": "triangle",
-            "osc3vol": 0.5,
-            "osc3tune": -8.5,
-            "attack": 0,
-            "decay": 0.87,
-            "sustain": 0.5,
-            "susdecay": 1,
-            "cutoff": 36
-         }*/{
-   "osc1type": "sine",
-   "osc1vol": 0.2,
-   "osc1tune": 0,
-   "osc2type": "square",
-   "osc2vol": 0.1,
-   "osc2tune": 12,
-   "osc3type": "sine",
-   "osc3vol": 0.05,
-   "osc3tune": -12,
-   "attack": 0,
-   "decay": 0.3,
-   "sustain": 0.5,
-   "susdecay": 1,
-   "cutoff": 36
-});
+        oscillator.connect(g);
+        g.connect(audioCtx.destination);
+        g.gain.setValueAtTime(volume, audioCtx.currentTime);
+        this.g = g;
+
+        oscillator.start();
+    }
+
+    vol(x) {
+        this.g.gain.linearRampToValueAtTime(x, this.a.currentTime + 0.5);
+    }
+    
+    volNext(x) {
+        this.g.gain.linearRampToValueAtTime(x, this.lastT + 0.1);
     }
 
     start() {
@@ -565,9 +560,12 @@ class Music {
 
         this.l.map((l) => {
             let d = l[0]*BAR_TIME / 4;
-            this.n.noteOn(l[1]*5, 50, t);
-            this.n.noteOff(t+d-0.001);
-            // this.o.frequency.setValueAtTime(l[1]*window.Z, t); // value in hertz
+            if(l[1]) {
+                // this.n.o(l[1]*5, 50, t);
+                // this.n.f(t+d-0.001);
+                this.o.frequency.setValueAtTime((l[1]+this.semi)*window.Z, t); // value in hertz
+                this.o.frequency.setValueAtTime(0, t+d-0.01);
+            }
             t+=d;
         });
         this.lastT = t;
@@ -657,7 +655,7 @@ const sg = 0.5;
 
 // st.start();
 
-const bs = new Music([
+const MS1 = [
     [dr-sg, 65.4], // c
     [sg, 0],
     [dr, 65.4], // c
@@ -671,8 +669,81 @@ const bs = new Music([
     [sg, 0],
     [dr, 68.29], // Db
     [2*dr, 0], // pause
+];
+
+function rep(x, times) {
+    let y = [];
+    for(let i=0;i<times;i++) {
+        y.push(x);
+    }
+    return y;
+}
+
+let flat = a => a.reduce((c, v) => c.concat(v));
+
+let makeMusic = m => m.map(n => [n[0], 27.6*Math.pow(2, (n[1]-21)/12)])
+
+let DR = 4;
+let DX = 2;
+
+// NEW MUSIC
+let NEW_BASS = makeMusic(flat([
+    rep([DR, 24], 8),
+    rep([DR, 32], 8),
+    rep([DR, 34], 8),
+    rep([DR, 30], 8)
+]));
+
+let NEW_LEAD = makeMusic([
+    [DX, 60],
+    [DX, 63],
+    [DX, 68],
+    [DX, 63],
+    [DX, 60], // rep
+    [DX, 63],
+    [DX, 68],
+    [DX, 63],
+
+    [DX, 55],
+    [DX, 60],
+    [DX, 65],
+    [DX, 63],
+    [DX, 70],
+    [DX, 63],
+    [DX, 67],
+    [DX, 63],
+
+    [DX, 60], // rep
+    [DX, 63],
+    [DX, 68],
+    [DX, 63],
+
+    [DX, 70],
+    [DX, 65],
+    [DX, 65],
+    [DX, 63]
+
 ])
+
+const bs = new Music(NEW_BASS, 0, 'sawtooth', 1);
 bs.start();
+
+const lead = new Music(NEW_LEAD, 0, 'sine', 0);
+lead.start();
+
+const lead2 = new Music(NEW_LEAD, -5, 'square', 0);
+lead2.start();
+
+const lead3 = new Music(NEW_LEAD, +5, 'square', 0);
+lead3.start();
+
+// const bs2 = new Music(MS1, 3);
+// bs2.start();
+
+
+// const bs3 = new Music(MS1, -3);
+// bs3.start();
+
 
 function isOccupied(x, y) {
     return false;

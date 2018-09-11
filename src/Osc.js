@@ -95,7 +95,7 @@ function SimpleJSSynth(dest, opts){
 
     my.connect(dest);
 
-    my.noteOn = function(freq, vol, now){
+    my.o = function(freq, vol, now){
         ndown = true;
         basefreq = freq;
         // var now = ctx.currentTime;
@@ -117,15 +117,7 @@ function SimpleJSSynth(dest, opts){
         gain.gain.linearRampToValueAtTime(0.000001, silent);
     };
 
-    my.bend = function(semitones){
-        var b = basefreq * Math.pow(2, semitones / 12);
-        var now = ctx.currentTime;
-        osc1.frequency.setTargetAtTime(b * tune1, now, 0.1);
-        osc2.frequency.setTargetAtTime(b * tune2, now, 0.1);
-        osc3.frequency.setTargetAtTime(b * tune3, now, 0.1);
-    };
-
-    my.noteOff = function(now){
+    my.f = function(now){
         ndown = false;
         // var now = ctx.currentTime;
         var v = gain.gain.value;
@@ -135,10 +127,6 @@ function SimpleJSSynth(dest, opts){
         gain.gain.linearRampToValueAtTime(0.000001, silent);
     };
 
-    my.isReady = function(){
-        return ctx.currentTime >= silent && !ndown;
-    };
-
     my.stop = function(){
         ndown = false;
         var now = ctx.currentTime;
@@ -146,15 +134,6 @@ function SimpleJSSynth(dest, opts){
         osc2gain.node.gain.setValueAtTime(0.000001, now);
         osc3gain.node.gain.setValueAtTime(0.000001, now);
         silent = 0;
-    };
-
-    my.destroy = function(){
-        ndown = false;
-        silent = 0;
-        osc1.stop();
-        osc2.stop();
-        osc3.stop();
-        my.disconnect();
     };
 
     return my;
