@@ -12,6 +12,7 @@ let E = 3.3262;
 const RC = [170, 170, 170];
 const dirs = [[-1,0],[1,0], [0,1], [0,-1]];
 const darr = ['left','right','down','up'];
+let rnd = () => Math.random();
 
 let START_SPAWN = false;
 
@@ -46,17 +47,17 @@ function isPartOfDataStream(x, y) {
 }
 
 let currentMode = {
-    type: 'STAGE',
+    type: 'S',
 };
 
-function enterTextMode(text, noscale) {
+function enTM(text, noscale) {
     let t = text.shift();
     let animationFinishFrame = frame + 10;
     if (noscale) {
         animationFinishFrame = frame - 1;
     }
     currentMode = {
-        type: 'TEXT',
+        type: 'T',
         animationFinishFrame: animationFinishFrame,
         currentText: '',
         fullText: t,
@@ -67,7 +68,7 @@ function enterTextMode(text, noscale) {
 
 function enterStageTransitionMode() {
     currentMode = {
-        type: 'STAGE_TRANSITION',
+        type: 'ST',
         fullScaleOut: frame + 5,
         initialScale: s
     }
@@ -75,7 +76,7 @@ function enterStageTransitionMode() {
 
 function enterStageMode() {
     currentMode = {
-        type: 'STAGE'
+        type: 'S'
     }
 }
 
@@ -93,7 +94,7 @@ function drawTextFrame(r) {
     if (currentMode.currentText.length === currentMode.fullText.length && isKey('x')) {
         // FIXME: wait for the close sign.
         if (currentMode.nextText.length) {
-            enterTextMode(currentMode.nextText, true);
+            enTM(currentMode.nextText, true);
         } else if (!player.health) {
             location.reload();
         } else {
@@ -121,13 +122,13 @@ class Obj {
         this._scheme = null;
     }
 
-    preRender(scheme, t) {
+    pR(scheme, t) {
         return scheme;
     }
 
     render(t) {
         let scheme = this._scheme(t).slice().map(s => s.slice());
-        scheme = this.preRender(scheme, t);
+        scheme = this.pR(scheme, t);
 
         if (this.isHit) {
             let q = t;
@@ -181,7 +182,7 @@ class Coin extends Obj {
     }
 }
 
-function playerDistance(b) {
+function plD(b) {
     return Math.abs(b.x - player.x) + Math.abs(b.y - player.y);
 }
 
@@ -196,15 +197,15 @@ class Enemy extends Obj {
     }
 
     isMoving() {
-        return this.a[0] + this.a[1] !== 0;
+        return this.a[0] + this.a[1] != 0;
     }
 
     update() {
         this.a = [0,0];
-        if (Math.random() < this._moveRatio) {
+        if (rnd() < this._moveRatio) {
             // decided to move ass
             let a = [0, 0];
-            let r = Math.random();
+            let r = rnd();
             if (r > 0.75) {
                 a[0]++;
             } else if(r > 0.5) {
@@ -214,7 +215,7 @@ class Enemy extends Obj {
             } else {
                 a[1]--;
             }
-            if (isTile(this.x+a[0], this.y+a[1])) {
+            if (isTile(this.x+a[0], this.y+a[1]) && !isOccupied(this.x+a[0], this.y+a[1])) {
                 this.x += a[0];
                 this.y += a[1];
                 this.a = a;
@@ -222,7 +223,7 @@ class Enemy extends Obj {
             }
         }
 
-        if (Math.random() < this._fireRatio) {
+        if (rnd() < this._fireRatio) {
             this.fire();
         }
     }
@@ -243,10 +244,27 @@ class Enemy extends Obj {
 
     fire() {
         bullets.push(new Bullet(this.x, this.y, this.d));
-        shotSound(playerDistance(this));
+        shotSound(plD(this));
     }    
 }
 
+let moveLeg = (s,j, r) => {
+    j.map(i => s[i] = s[i].slice());
+    if (r < 0.5) {
+        s[j[0]][2] += r*0.2;
+        s[j[1][2]] += r*0.2;
+    } else if(r < 1) {
+        s[j[0]][2] += 0.2 - (r-0.5)*0.2;
+        s[j[1][2]] += 0.2 - (r-0.5)*0.2;
+    } else if (r < 1.5) {
+        s[2][2] += (r-1)*0.2;
+        s[3][2] += (r-1)*0.2;
+    } else {
+        s[2][2] += 0.2 - (r-1.5)*0.2;
+        s[3][2] += 0.2 - (r-1.5)*0.2;
+    }
+    return s;
+}
 
 // BOT CLASS
 class Bot extends Enemy {
@@ -258,37 +276,39 @@ class Bot extends Enemy {
         this._fireRatio = 0.05;
     }
 
-    preRender(scheme, r) {
+    pR(s, r) { // prerender
 
         if (this.isMoving()) {
-            scheme[0] = scheme[0].slice();
-            scheme[1] = scheme[1].slice();
-            scheme[2] = scheme[2].slice();
-            scheme[3] = scheme[3].slice();
-            const j = r*2;
-            if (j <= 0.5) {
-                scheme[0][2] += j*0.2;
-                scheme[1][2] += j*0.2;
-            } else if(j <= 1) {
-                scheme[0][2] += 0.2 - (j-0.5)*0.2;
-                scheme[1][2] += 0.2 - (j-0.5)*0.2;
-            } else if (j <= 1.5){
-                scheme[2][2] += (j-1)*0.2;
-                scheme[3][2] += (j-1)*0.2;
-            } else {
-                scheme[2][2] += 0.2 - (j-1.5)*0.2;
-                scheme[3][2] += 0.2 - (j-1.5)*0.2;
+            s = moveLeg(s, [0,1,2,3], r*2);
+            // s[0] = s[0].slice();
+            // s[1] = s[1].slice();
+            // s[2] = s[2].slice();
+            // s[3] = s[3].slice();
+            // const j = r*2;
+            // if (j <= 0.5) {
+            //     s[0][2] += j*0.2;
+            //     s[1][2] += j*0.2;
+            // } else if(j <= 1) {
+            //     s[0][2] += 0.2 - (j-0.5)*0.2;
+            //     s[1][2] += 0.2 - (j-0.5)*0.2;
+            // } else if (j <= 1.5){
+            //     s[2][2] += (j-1)*0.2;
+            //     s[3][2] += (j-1)*0.2;
+            // } else {
+            //     s[2][2] += 0.2 - (j-1.5)*0.2;
+            //     s[3][2] += 0.2 - (j-1.5)*0.2;
 
-            }
+            // }
         }
-        return scheme;
+        return s;
     }
 }
 
 class Agrobot extends Bot {
-    preRender(s, r) {
-        let b = super.preRender(s, r);
+    pR(s, r) {
+        let b = super.pR(s, r);
         return b.map(x => {
+            x[6] = x[6].slice();
             x[6][0] = 255;
             return x;
         });
@@ -306,7 +326,6 @@ class Agrobot extends Bot {
         ) {
             if (this.lastFired + 5 < frame) {
                 this.lastFired = frame;
-                console.log('Same line');
                 this.fire();
             }
         } else {
@@ -323,6 +342,7 @@ class Swarm extends Bot {
 
     fire() {
         dirs.map(d => bullets.push(new Bullet(this.x, this.y, d)));
+        shotSound(plD(this));
     }
 }
 
@@ -345,7 +365,7 @@ const triggers = [
         t: (x, y) => y === 11,
         v: () => {
             lead.volNext(3);
-            enterTextMode([
+            enTM([
                 'This is our main datastream.',
                 'All the information on the internet runs through here',
                 'Behind this bridge you can find many unpleastant things',
@@ -359,7 +379,7 @@ const triggers = [
     {
         t: (x, y) => x === -20,
         v: () => {
-            enterTextMode([
+            enTM([
                 'This is a coin',
                 'It is the key to restore online connection',
                 'Do not ask me how does it work, just trust me',
@@ -373,7 +393,7 @@ const triggers = [
         v: function() {
             ALLOWED_FOES.push(Bot);
             EN_COUNT = 15;
-            enterTextMode([
+            enTM([
                 'You have collected some coins',
                 'Now you can face more powerful foes.'
             ]);
@@ -396,7 +416,7 @@ const triggers = [
         v: () => {
             EN_COUNT = 20;
             SHIELD_ACTIVE = true;
-            enterTextMode([
+            enTM([
                 'Now you can meet more agresive bots.',
                 'They have been infected and are even less friendly',
                 'They will shoot you on site',
@@ -412,7 +432,7 @@ const triggers = [
         t: () => player.coins >= 40,
         v: () => {
             EN_COUNT = 30;
-            enterTextMode([
+            enTM([
                 'You are getting rich quite fast',
                 'Remember, gather 100 coins and face the final boss',
                 'But before that, the wild swarm can appear',
@@ -425,20 +445,21 @@ const triggers = [
     {
         t: () => !player.health,
         v: function() {
-            enterTextMode(['G A M E  O V E R', 'You have gathered ' + player.coins + ' coins!']);
+            enTM(['G A M E  O V E R', 'You have gathered ' + player.coins + ' coins!']);
         }
     },
     {
         t: () => player.coins >= 100,
         v: () => {
             grd = mgd('#3F8', '#2EA');
-            enterTextMode([
+            enTM([
                 'Congratulations!',
                 'You have restored online connection',
                 'You are saved!',
                 'You can now play in the endless mode.',
                 'Every 10 coins will activate disco mode for a while (epilepsy warning)',
-                'Thank you for playing.'
+                'Thank you for playing.',
+                'Special thanks to my inspiration, N.'
             ]);
         }
     },
@@ -447,8 +468,8 @@ const triggers = [
         d: true,
         v: () => {
             grd = mgd(
-                col([Math.random()*255, Math.random()*255,Math.random()*255]),
-                col([Math.random()*255, Math.random()*255,Math.random()*255])
+                col([rnd()*255, rnd()*255,rnd()*255]),
+                col([rnd()*255, rnd()*255,rnd()*255])
             );
         }
     }
@@ -472,29 +493,34 @@ class Player extends Enemy {
         this.isShieldActive = false;
         this.coins = 0;
         this._scheme = (r) => getPlayer(this.d);
-        // this._scheme = () => wtf_SCHEME_NEW;
+        // this._scheme = () => getPlayer(this.d);
     }
-    preRender(scheme, r) {
+    pR(s, r) {
+
+        if (this.isMoving()) {
+            s = moveLeg(s, [1,3,2,4], r*2);
+        }
 
         if (this.isShieldActive) {
-            return [...scheme, ...SHIELD];
+            return [...s, ...SHIELD];
         }
-        return scheme;
+        return s;
     }
     update() {
         this.x += this._nextA[0];
         this.y += this._nextA[1];
         this.a = this._nextA;
-
         if (this._nextA[0] + this._nextA[1] !== 0) {
             this.d = this._nextA;
         }
         this._nextA = [0, 0];
     }
     move(x,y) {
-        if (isTile(this.x+x, this.y+y)) {
+        if (isTile(this.x+x, this.y+y) && !isOccupied(this.x+x, this.y+y)) {
             this._nextA = [x, y];
             return true;
+        } else {
+            this.d = [x,y];
         }
 
         return false;
@@ -510,6 +536,7 @@ class Player extends Enemy {
         if (this.isDying) {
             return;
         }
+        colSound();
 
         if (c.ct === 'H' && this.health < 5) {
             this.health++;
@@ -569,51 +596,61 @@ class Bullet {
 
 const BAR_TIME = 0.40;
 
-var a = new (window.AudioContext || window.webkitAudioContext)();
-var g = a.createGain();
-var o = a.createOscillator();
+const A = new (window.AudioContext || window.webkitAudioContext)();
+var g = A.createGain();
+var o = A.createOscillator();
 o.type = 'square';
 o.connect(g);
-g.connect(a.destination);
+g.connect(A.destination);
 o.start();
-g.gain.linearRampToValueAtTime(0, a.currentTime + 0.01);
+g.gain.linearRampToValueAtTime(0, A.currentTime + 0.01);
 
 function shotSound(distance) {
     if (distance > 10) {
         return;
     }
-    g.gain.setValueAtTime(80, a.currentTime);
-    o.frequency.setValueAtTime(300, a.currentTime)
-    o.frequency.linearRampToValueAtTime(140, a.currentTime + 0.1)
-    g.gain.linearRampToValueAtTime(0, a.currentTime + 0.1);
-
-    // setTimeout(() => {
-    //     o.stop();
-    //     o.disconnect();
-    // }, 1000);
+    let t = A.currentTime;
+    g.gain.setValueAtTime(80, t);
+    o.frequency.setValueAtTime(300, t)
+    o.frequency.linearRampToValueAtTime(140, t + 0.1)
+    g.gain.linearRampToValueAtTime(0, t + 0.1);
 }
 
-
-var aa = new (window.AudioContext || window.webkitAudioContext)();
-var gg = aa.createGain();
-var oo = aa.createOscillator();
+var gg = A.createGain();
+var oo = A.createOscillator();
 oo.type = 'square';
 oo.connect(gg);
-gg.connect(aa.destination);
+gg.connect(A.destination);
 oo.start();
-gg.gain.linearRampToValueAtTime(0, a.currentTime + 0.01);
+gg.gain.linearRampToValueAtTime(0, A.currentTime + 0.01);
 
 function explosionSound() {
-    gg.gain.setValueAtTime(100, a.currentTime);
+    let t = A.currentTime;
+    gg.gain.setValueAtTime(100, t);
     for(var i=0;i<10;i++) {
         // oo.frequency.linearRampToValueAtTime(140, a.currentTime + i*0.03)
-        oo.frequency.linearRampToValueAtTime(50, a.currentTime + i*0.01 + 0.01)
+        oo.frequency.linearRampToValueAtTime(50, t + i*0.01 + 0.01)
     }
     // o.frequency.linearRampToValueAtTime(300, a.currentTime + 0.7)
-    gg.gain.linearRampToValueAtTime(0, a.currentTime + 0.15);
+    gg.gain.linearRampToValueAtTime(0, t + 0.15);
 }
 
-// window.ss = shotSound
+let colSound = (() => {
+    let g = A.createGain();
+    let o = A.createOscillator();
+    o.type = 'square';
+    o.connect(g);
+    g.connect(A.destination);
+    o.start();
+    g.gain.linearRampToValueAtTime(0, A.currentTime + 0.01);
+    return () => {
+        let t = A.currentTime;
+        g.gain.setValueAtTime(80, t);
+        o.frequency.setValueAtTime(1000, t)
+        o.frequency.linearRampToValueAtTime(1800, t + 0.1)
+        g.gain.linearRampToValueAtTime(0, t + 0.1);
+    }
+})();
 
 class Music {
     constructor(loop, semi, type, volume = 100) {
@@ -841,7 +878,7 @@ lead3.start();
 
 
 function isOccupied(x, y) {
-    return false;
+    return [...bots,player].reduce((a,b) => a || b.x == x && b.y == y, 0);
 
 }
 
@@ -1002,7 +1039,7 @@ function convertDrawNew(rec, x, y, dir, dx = 0, dy = 0) { // [x, y, z, w, d, h, 
     if(dir[0] < 0) {
         rec = rec.map(x => {
             x = x.slice();
-            let t = 1 -x[0];
+            let t = x[0];
             x[0] = 1 - x[1];
             x[1] = t;
             t = x[3];
@@ -1015,7 +1052,7 @@ function convertDrawNew(rec, x, y, dir, dx = 0, dy = 0) { // [x, y, z, w, d, h, 
     if(dir[0] > 0) {
         rec = rec.map(x => {
             x = x.slice();
-            let t = 1 -x[0];
+            let t = x[0];
             x[0] = x[1];
             x[1] = t;
             t = x[3];
@@ -1025,26 +1062,26 @@ function convertDrawNew(rec, x, y, dir, dx = 0, dy = 0) { // [x, y, z, w, d, h, 
         })
     }
 
-    const f = (x) => {
-        const p = getPosition(x[0] + x[3]/2, x[1]+x[4]/2);
-        return p[2] + p[0] + p[1];
-    }
+    // const f = (x) => {
+    //     const p = getPosition(x[0] + x[3]/2, x[1]+x[4]/2);
+    //     return p[2] + p[0] + p[1];
+    // }
 
-    const orderFn = (a, b) => {
-        let res = [-1,-1,1];
-        for(var i=0;i<3;i++) {
-            if (a[0+i] - a[3+i] >= b[0+i] + b[3+i]) {
-                return -res[i];
-            } else if (b[0+i] - b[3+i] >= a[0+i] + a[3+i]) {
-                return res[i];
-            }
-        }
-        return -1;
-    }
+    // const orderFn = (a, b) => {
+    //     let res = [-1,-1,1];
+    //     for(var i=0;i<3;i++) {
+    //         if (a[0+i] - a[3+i] >= b[0+i] + b[3+i]) {
+    //             return res[i];
+    //         } else if (b[0+i] - b[3+i] >= a[0+i] + a[3+i]) {
+    //             return -res[i];
+    //         }
+    //     }
+    //     return -1;
+    // }
 
     // const f = x => x[0];
 
-    rec = rec.sort(orderFn);
+    // rec = rec.sort((a,b) => -f(a) + f(b));
 
 
     rec.map(r => {
@@ -1088,42 +1125,11 @@ function convertDrawNew(rec, x, y, dir, dx = 0, dy = 0) { // [x, y, z, w, d, h, 
     })
 }
 
-function convNew(scheme) {
-    return scheme.map(r => {
-        let xx = r[0];
-        let yx = r[1];
-        let z = r[2];
-        let w = r[3];
-        let d = r[4];
-        let h = r[5];
-        let col = r[6];
-        return [xx - w/2, yx - d/2, z - h/2, w, d, h, col];
-    })
-}
-
-const wtf_SCHEME_NEW = [
-    // [0.5,0.5,0.5, 1, 1, 1, RC],
-    // [0.5, 0.5, 1.25, 0.5, 0.5, 0.5, [255, 0, 0]]
-    [0.3, 0.45, 0.05, 0.05, 0.2, 0.05, RC],
-    [0.3, 0.5, 0.3, 0.05, 0.05, 0.4, RC],
-
-    [0.6, 0.45, 0.05, 0.05, 0.2, 0.05, RC],
-    [0.6, 0.5, 0.3, 0.05, 0.05, 0.4, RC],
-
-    // belly
-    [0.5, 0.5, 0.6, 0.2, 0.2, 0.4, RC],
-    // head
-    [0.5, 0.5, 1.0, 0.2, 0.2, 0.2, RC],
-    [0.5, 0.4, 1.0, 0.2, 0.001, 0.1, [255, 0, 0]]
-]
-
 const PC = [200, 180, 150]
 
 function getPlayer(dir) {
     const p = [
         [0.65, 0.4, 0.4, 0.05, 0.2,0.05, [90,70,200]],
-        // [0.5,0.5,0.5, 1, 1, 1, RC],
-        // [0.5, 0.5, 1.25, 0.5, 0.5, 0.5, [255, 0, 0]]
         [0.35, 0.425, 0.05, 0.05, 0.2, 0.05, PC],
         [0.35, 0.5, 0.15, 0.05, 0.05, 0.2, PC],
 
@@ -1144,10 +1150,13 @@ function getPlayer(dir) {
     ]
     let dirs = [[dir[0], dir[1]], [dir[1], dir[0]]];
     if (dir[0] > 0) {
-        dirs = [[1,0], [0,-1]];
+        dirs=[[1,0],[0,1]];
     }
     if (dir[1] < 0) {
         dirs = [[-1, 0], [0,1]];
+    }
+    if (dir[0] < 0) {
+        dirs = [[-1, 0], [0, 1]];
     }
     if (dir[0]+dir[1] > 0) {
        p.push([0.45, 0.35, 0.7, 0.05, 0.001, 0.05, [0, 0, 0]]);
@@ -1230,11 +1239,11 @@ function getSwarm(r) {
     return s.map(x => {
         x = x.slice();
         x[3] -= Math.sin(2*Math.PI*r)*0.3;
-        x[2] += Math.random()*0.4;
+        x[2] += rnd()*0.4;
         x[6] = x[6].slice();
-        x[6][0] += Math.random()*10;
-        x[6][1] += Math.random()*20;
-        x[6][2] -= Math.random()*10;
+        x[6][0] += rnd()*10;
+        x[6][1] += rnd()*20;
+        x[6][2] -= rnd()*10;
         return x;
     })
 }
@@ -1304,12 +1313,16 @@ function getMultiframePosition(multi, frame, r) {
 //     [0.2, 0.3, [20, 20, 20], 0.1, 0.1, 0.1, 0.6, true],
 //     [0.2, 0.6, darken(RC, 0.2), 0.1, 0.1, 0.2, 0.7, true]
 // ];
-function getRobot() { // FIXME: add arm
-        return [
+function getRobot(d) { // FIXME: add arm
+        let x= [
         // [0.5,0.5,0.5, 1, 1, 1, RC],
         // [0.5, 0.5, 1.25, 0.5, 0.5, 0.5, [255, 0, 0]]
         [0.3, 0.4, 0.05, 0.1, 0.3, 0.1, RC],
         [0.3, 0.5, 0.3, 0.1, 0.1, 0.4, RC],
+        // arm
+        [0.8, 0.5, 0.65, 0.1, 0.1, 0.2, darken(RC, 0.2)],
+        [0.8, 0.3, 0.6, 0.1, 0.3, 0.1, darken(RC, 0.2)],
+        [0.8, 0.2, 0.6, 0.1, 0.1, 0.1, [20, 20, 20]],
 
         [0.6, 0.4, 0.05, 0.1, 0.3, 0.1, RC],
         [0.6, 0.5, 0.3, 0.1, 0.1, 0.4, RC],
@@ -1317,9 +1330,13 @@ function getRobot() { // FIXME: add arm
         // belly
         [0.5, 0.5, 0.6, 0.4, 0.4, 0.6, RC],
         // head
-        [0.5, 0.5, 1.0, 0.2, 0.2, 0.2, RC],
-        [0.5, 0.4, 1.0, 0.2, 0.001, 0.1, [255, 0, 0]]
-    ]
+        [0.5, 0.5, 1.0, 0.2, 0.2, 0.2, RC]
+        ];
+        if (d[0]>0||d[1]>0) x.push([0.5, 0.4, 1.0, 0.2, 0.001, 0.1, [255, 0, 0]])
+
+        return x.concat([[0.2, 0.5, 0.65, 0.1, 0.1, 0.2, darken(RC, 0.2)],
+        [0.2, 0.3, 0.6, 0.1, 0.3, 0.1, darken(RC, 0.2)],
+        [0.2, 0.2, 0.6, 0.1, 0.1, 0.1, [20, 20, 20]]]);
 }
 
 const SHIELD = [
@@ -1550,31 +1567,32 @@ function gc() {
 function recomputeFrame() {
     let now = +(new Date());
     if (now > nextFrame) {
-        if (currentMode.type === 'STAGE') {
+        if (currentMode.type === 'S') {
             bots.map(b => b.isHit = false)
             player.isHit = false;
             bots = bots.filter(b => {
                 if (b.isDying) {
-                    let r = Math.random();
+                    let r = rnd();
                     if(r < (5-player.health)*0.05) {
                         pups.push(new Health(b.x, b.y));
                     } else if(r < 0.7) {
                         pups.push(new Coin(b.x, b.y));
                     }
                 }
-                if (Math.abs(player.x -b.x)+Math.abs(player.y - b.y) > 40) {
+                if (plD(b) > 40) {
                     return false;
                 }
                 return !b.isDying
             });
+            pups = pups.filter(p => plD(p) < 40);
             computeCollisions();
             gc();
 
             if (bots.length < EN_COUNT && START_SPAWN) {
-                let x = Math.floor(player.x + 5 + Math.random() * 10);
-                let y = Math.floor(player.y+ 5 + Math.random()*15);
-                if (isTile(x, y)) {
-                    let i = Math.floor(ALLOWED_FOES.length * Math.random());
+                let x = Math.floor(player.x + 5 + rnd() * 10);
+                let y = Math.floor(player.y+ 5 + rnd()*15);
+                if (isTile(x, y) && !isOccupied(x, y)) {
+                    let i = Math.floor(ALLOWED_FOES.length * rnd());
                     let C = ALLOWED_FOES[i];
                     bots.push(new C(x, y));
                 }
@@ -1619,11 +1637,11 @@ function drawPostprocess(r) {
         c.fill();
     }
 
-    if(Math.random() > 0.9899 && weirdAnimEndFrame < frame) {
-        weirdAnimLen = 2 + Math.floor(Math.random() * 10); 
+    if(rnd() > 0.9899 && weirdAnimEndFrame < frame) {
+        weirdAnimLen = 2 + Math.floor(rnd() * 10); 
         weirdAnimEndFrame = frame + weirdAnimLen;
-        weirdAnimSize = CH/80*Math.random();
-        weirdColor = Math.round(Math.random()*4);
+        weirdAnimSize = CH/80*rnd();
+        weirdColor = Math.round(rnd()*4);
     }
 
     if (weirdAnimEndFrame > frame) {
@@ -1637,15 +1655,15 @@ function drawPostprocess(r) {
     }
 
     // Weird freeze
-    if (Math.random() > 0.95 && weirdFreezeFrame < frame) {
+    if (rnd() > 0.95 && weirdFreezeFrame < frame) {
         weirdFreezeFrame = frame + 2;
-        let posX = Math.random() * CW*0.9;
-        let posY = Math.random() * CH*0.9;
+        let posX = rnd() * CW*0.9;
+        let posY = rnd() * CH*0.9;
         let width = Math.min(CW-posX, CW/3);
         let height = Math.min(CH-posY, CH/4);
         weirdFrame = c.getImageData(posX, posY, width, height);
-        weirdFrameX = posX + (Math.random()-0.5)*2*3;
-        weirdFrameY = posY + (Math.random()-0.5)*2*6;
+        weirdFrameX = posX + (rnd()-0.5)*2*3;
+        weirdFrameY = posY + (rnd()-0.5)*2*6;
     }
 
     if (weirdFreezeFrame > frame) {
@@ -1680,7 +1698,6 @@ function rGP(key) {
     if (!gp) {
         return;
     }
-    console.log('rgp', gp.buttons[0].pressed);
     if (key === 'x') {
         return gp.buttons[1].pressed;
     }
@@ -1688,8 +1705,6 @@ function rGP(key) {
         return gp.buttons[0].pressed;
     }
     return darr.reduce((a, d,i) => a || (key === 'arrow'+d && dirs[i][0] === gp.axes[0] && dirs[i][1] === gp.axes[1]), 0);
-    console.log(gp);
-    return false;
 }
 
 function isKey(key) {
@@ -1708,7 +1723,7 @@ function updateKeys() {
 function draw() {
     let currentFrameMoment = recomputeFrame();
     let globalFrameMoment = currentFrameMoment;
-    if (currentMode.type !== 'STAGE') {
+    if (currentMode.type !== 'S') {
         currentFrameMoment = 0;
     }
     clear();
@@ -1719,15 +1734,15 @@ function draw() {
     drawBullets(currentFrameMoment);
     drawPlayer(currentFrameMoment);
     // drawGoal(0, 0, currentFrameMoment);
-    if (currentMode.type === 'STAGE') {
+    if (currentMode.type === 'S') {
         drawHud(currentFrameMoment);
     }
 
-    if (currentMode.type === 'TEXT') {
+    if (currentMode.type === 'T') {
         drawTextFrame(globalFrameMoment);
     }
 
-    if (currentMode.type === 'STAGE_TRANSITION') {
+    if (currentMode.type === 'ST') {
         drawStageTransition(globalFrameMoment);
     }
 
@@ -1737,11 +1752,11 @@ function draw() {
 }
 
 draw();
-enterTextMode([
+enTM([
     'Welcome to the cyberspace' + ' '.repeat(35) + '(PRESS X to continue)',
     'Game by' + ' '.repeat(10) + 'kulak',
     'You must be the new one.',
-    'There have been a blackout in your world and everything went offline',
+    'There has been a blackout in your world and everything went offline',
     'Now you have to fight your way through the cyberspace to restore the connection!',
     'It\'s usually a calm place but we are experiencing glitch invasion right now so please proceed with causion.',
     'Good luck!'
