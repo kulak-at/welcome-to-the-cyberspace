@@ -337,6 +337,7 @@ class Virus extends Enemy {
 const ALLOWED_FOES = [Virus];
 
 let EN_COUNT = 10;
+let SHIELD_ACTIVE = false;
 
 const triggers = [
     {
@@ -351,9 +352,21 @@ const triggers = [
                 'Viruses, bots, swarms of data',
                 'Be prepared',
                 'You can use your gun by pressing X',
-                'Your shield can be activated by using Z'
             ]);
             START_SPAWN = true;
+        }
+    },
+    {
+        t: (x, y) => x === -20,
+        used: false,
+        trigger: () => {
+            enterTextMode([
+                'This is a coin',
+                'It is the key to restore online connection',
+                'Do not ask me how does it work, just trust me',
+                'Gather coins to unlock the way to freedom',
+                'But reacher you are, the stronger are the opponents'
+            ])
         }
     },
     {
@@ -369,18 +382,24 @@ const triggers = [
         }
     },
     {
-        t: () => player.coins >= 20,
+        t: () => player.coins >= 25,
         used: false,
         trigger: () => {
             EN_COUNT = 20;
+            SHIELD_ACTIVE = true;
             enterTextMode([
                 'Now you can meet more agresive bots.',
                 'They have been infected and are even less friendly',
                 'They will shoot you on site',
+                'But I have upgraded your avatar with the shield',
+                'Press Z to activate it',
+                'It works in the single direction though.',
                 'Be quick or be dead!'
             ]);
             ALLOWED_FOES.push(Agrobot);
         },
+    },
+    {
         t: () => player.coins >= 40,
         used: false,
         trigger: () => {
@@ -799,7 +818,7 @@ let bullets = [];
 // Make bots
 let bots = []
 
-let pups = [];
+let pups = [new Coin(-22, 4)];
 
 
 
@@ -1474,7 +1493,9 @@ function computeCollisions() {
             for(var i=0;i<BULLET_SPEED;i++) {
                 if (b.x + b.a[0]*i === bot.x && b.y + b.a[1]*i === bot.y) {
                     // console.log('HIT');
-                    bot.hit();
+                    if (!(bot.isShieldActive && bot.d[0]*b.a[0] + bot.d[1]*b.a[1] < 0)) {
+                        bot.hit();
+                    }
                     b.togc = true;
 
                 }
@@ -1620,8 +1641,8 @@ function updateKeys() {
     if(CT.x) {
         player.fire();
     }
-    player.isShieldActive = CT.z;
-    ['up','down','left','right'].map((x,i) => { if(CT['arrow'+x]) player.move(dirs[i][0], dirs[i][1])});
+    player.isShieldActive = SHIELD_ACTIVE && CT.z;
+    ['left','right','down','up'].map((x,i) => { if(CT['arrow'+x]) player.move(dirs[i][0], dirs[i][1])});
 }
 
 
