@@ -13,6 +13,8 @@ const RC = [170, 170, 170];
 
 let START_SPAWN = false;
 
+const CT = {};
+
 
 let frame = 0;
 const FRAME_LENGTH = 100;
@@ -47,10 +49,10 @@ function isPartOfDataStream(x, y) {
     return y > 8 && y < 12;
 }
 
-const keys = {
-    isX: false,
-    isZ: false,
-}
+// const keys = {
+//     isX: false,
+//     isZ: false,
+// }
 
 let currentMode = {
     type: 'STAGE',
@@ -97,7 +99,7 @@ function drawStageTransition(r) {
 }
 
 function drawTextFrame(r) {
-    if (currentMode.currentText.length === currentMode.fullText.length && keys.isX) {
+    if (currentMode.currentText.length === currentMode.fullText.length && CT.x) {
         // FIXME: wait for the close sign.
         if (currentMode.nextText.length) {
             enterTextMode(currentMode.nextText, true);
@@ -1560,6 +1562,7 @@ function recomputeFrame() {
         nextFrame = now + FRAME_LENGTH;
         frame++;
         computeTriggers(player.x, player.y);
+        updateKeys()
         // FIXME: collision detection probably.
     }
 
@@ -1647,6 +1650,15 @@ function drawHud(r) {
     drawTextfield(''+player.coins, r, CW/2 - s/4*5, CH/2 - 20, true, 40);
 }
 
+function updateKeys() {
+    if(CT.x) {
+        player.fire();
+    }
+    player.isShieldActive = CT.z;
+    let d = [[-1,0],[1,0], [0,1], [0,-1]];
+    ['up','down','left','right'].map((x,i) => { if(CT['arrow'+x]) player.move(d[i][0], d[i][1])});
+}
+
 
 function draw() {
     let currentFrameMoment = recomputeFrame();
@@ -1680,14 +1692,14 @@ function draw() {
 }
 
 draw();
-// enterTextMode([
-//     'Welcome to the cyberspace',
-//     'You must be the new one.',
-//     'There have been a blackout in your world and everything went offline',
-//     'Now you have to fight your way through the cyberspace to restore the connection!',
-//     'It\'s usually a calm place but we are experiencing glitch invasion right now so please proceed with causion.',
-//     'Good luck!'
-// ]);
+enterTextMode([
+    'Welcome to the cyberspace',
+    'You must be the new one.',
+    'There have been a blackout in your world and everything went offline',
+    'Now you have to fight your way through the cyberspace to restore the connection!',
+    'It\'s usually a calm place but we are experiencing glitch invasion right now so please proceed with causion.',
+    'Good luck!'
+]);
 
 
 
@@ -1710,49 +1722,57 @@ draw();
 // }
 
 
-document.addEventListener('keyup', function(e) {
-    if (e.key === 'z') {
-        player.isShieldActive = false;
-        keys.isZ = false;
-    } else if (e.key === 'x') {
-        keys.isX = false;
-    }
+// document.addEventListener('keyup', function(e) {
+//     if (e.key === 'z') {
+//         player.isShieldActive = false;
+//         keys.isZ = false;
+//     } else if (e.key === 'x') {
+//         keys.isX = false;
+//     }
+// });
+
+document.addEventListener('keydown', (e) => {
+    CT[e.key.toLowerCase()] = 1;
 });
 
-document.addEventListener('keydown', function(e) {
-    let a = [0, 0];
-    switch(e.key) {
-        case 'ArrowDown':
-            player.move(0,1)
-            break;
-        case 'ArrowUp':
-            player.move(0, -1)
-            break;
-        case 'ArrowLeft':
-            player.move(-1, 0)
-            break;
-        case 'ArrowRight':
-            player.move(1, 0)
-            break;
-        case 'X':
-        case 'x':
-            player.fire();
-            keys.isX = true;
-            break;
-        case 'z':
-            player.isShieldActive = true;
-            player.isZ = true;
-            break;
-        case '+':
-            changeScale(s+10);
-            break;
-        case 'Enter':
-            enterTextMode(['Text mode test'])
-            break;
-        case '-':
-        changeScale(s-10);
-    }
-});
+document.addEventListener('keyup', (e) => {
+    CT[e.key.toLowerCase()] = 0;
+})
+
+// document.addEventListener('keydown', function(e) {
+//     let a = [0, 0];
+//     switch(e.key) {
+//         case 'ArrowDown':
+//             player.move(0,1)
+//             break;
+//         case 'ArrowUp':
+//             player.move(0, -1)
+//             break;
+//         case 'ArrowLeft':
+//             player.move(-1, 0)
+//             break;
+//         case 'ArrowRight':
+//             player.move(1, 0)
+//             break;
+//         case 'X':
+//         case 'x':
+//             player.fire();
+//             keys.isX = true;
+//             break;
+//         case 'z':
+//             player.isShieldActive = true;
+//             player.isZ = true;
+//             break;
+//         case '+':
+//             changeScale(s+10);
+//             break;
+//         case 'Enter':
+//             enterTextMode(['Text mode test'])
+//             break;
+//         case '-':
+//         changeScale(s-10);
+//     }
+// });
 
 // window.addEventListener('mousemove', function(e) {
 //     const ratio = ((e.clientY / window.document.body.offsetHeight) - 0.5) * 2;
