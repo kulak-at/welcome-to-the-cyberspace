@@ -10,21 +10,16 @@ let fixSize = 2;
 let D = 100032.4524;
 let E = 3.3262;
 const RC = [170, 170, 170];
+const dirs = [[-1,0],[1,0], [0,1], [0,-1]];
 
 let START_SPAWN = false;
 
 const CT = {};
 
-
 let frame = 0;
 const FRAME_LENGTH = 100;
 let startTime = +(new Date());
 let nextFrame = startTime + FRAME_LENGTH;
-
-function randomGen(x,y) {
-    return Math.sin(x) + Math.cos(y) / 2;
-}
-
 
 function getNoise(x,y) {
     return N(E*x+D,E*y+D,E*D);
@@ -48,11 +43,6 @@ function isBridge(x, y) {
 function isPartOfDataStream(x, y) {
     return y > 8 && y < 12;
 }
-
-// const keys = {
-//     isX: false,
-//     isZ: false,
-// }
 
 let currentMode = {
     type: 'STAGE',
@@ -117,7 +107,6 @@ function drawTextFrame(r) {
         currentMode.currentText += currentMode.fullText[currentMode.currentText.length];
         currentMode.nextLetterTime = 0;
     }
-    console.log('CURRENT TEXT', currentMode.currentText);
 
     drawTextfield(currentMode.currentText);
 }
@@ -295,6 +284,47 @@ class Bot extends Enemy {
     }
 }
 
+class Agrobot extends Bot {
+    preRender(s, r) {
+        let b = super.preRender(s, r);
+        return b.map(x => {
+            x[6][0] = 255;
+            return x;
+        });
+    }
+
+    update() {
+        this.a = [0,0];
+        let px = player.x;
+        let py = player.y;
+        let x = this.x;
+        let y = this.y;
+        if (
+            (x === px && (py -y) * ((py - 5)*this.d[1] - y) < 0) ||
+            (y === py && (px - x) * ((px - 5)*this.d[0] - x) < 0)
+        ) {
+            if (this.lastFired + 5 < frame) {
+                this.lastFired = frame;
+                console.log('Same line');
+                this.fire();
+            }
+        } else {
+            super.update();
+        }
+    }
+}
+
+class Swarm extends Bot {
+    constructor(x, y) {
+        super(x,y);
+        this._scheme = (r) => getSwarm(r);
+    }
+
+    fire() {
+        dirs.map(d => bullets.push(new Bullet(this.x, this.y, d)));
+    }
+}
+
 class Virus extends Enemy {
     constructor(x,y) {
         super(x,y);
@@ -305,6 +335,8 @@ class Virus extends Enemy {
 
 
 const ALLOWED_FOES = [Virus];
+
+let EN_COUNT = 10;
 
 const triggers = [
     {
@@ -329,10 +361,38 @@ const triggers = [
         used: false,
         trigger: function() {
             ALLOWED_FOES.push(Bot);
+            EN_COUNT = 15;
             enterTextMode([
                 'You have collected some coins',
                 'Now you can face more powerful foes.'
             ]);
+        }
+    },
+    {
+        t: () => player.coins >= 20,
+        used: false,
+        trigger: () => {
+            EN_COUNT = 20;
+            enterTextMode([
+                'Now you can meet more agresive bots.',
+                'They have been infected and are even less friendly',
+                'They will shoot you on site',
+                'Be quick or be dead!'
+            ]);
+            ALLOWED_FOES.push(Agrobot);
+        },
+        t: () => player.coins >= 40,
+        used: false,
+        trigger: () => {
+            EN_COUNT = 30;
+            enterTextMode([
+                'You are getting rich quite fast',
+                'Remember, gather 100 coins and face the final boss',
+                'But before that, the wild swarm can appear',
+                'It shoot in all directions'
+            ]);
+            ALLOWED_FOES.push(Swarm);
+            ALLOWED_FOES.shift();
         }
     },
     {
@@ -351,23 +411,6 @@ function computeTriggers(x, y) {
             t.used = true;
         }
     });
-}
-
-
-
-function generateSwarm(r) {
-    let scheme = SWARM_NEW.slice();
-    return scheme.map(x => {
-        x = x.slice();
-        x[3] -= Math.sin(2*Math.PI*r)*0.3;
-        x[2] += Math.random()*0.4;
-        x[6] = x[6].slice();
-        x[6][0] += Math.random()*10;
-        x[6][1] += Math.random()*20;
-        x[6][2] -= Math.random()*10;
-        console.log(x);
-        return x;
-    })
 }
 
 class Player extends Enemy {
@@ -436,7 +479,6 @@ class Camera {
     render(r) {
         c.translate(-this._c[0], -this._c[1]);
         let q = getPosition(this.p.pos(r).x, this.p.pos(r).y); // fixme: probably optimize
-        // console.log('Q');
         this._c = [-q[0], -q[1]]
         c.translate.apply(c, this._c);
     }
@@ -573,7 +615,6 @@ class Music {
         this.lastT = t;
 
         const n = this.lastT - this.a.currentTime;
-        console.log('DIFF', n);
         setTimeout(() =>{
             this.start();
         }, 1000 * n*0.95);
@@ -1080,24 +1121,6 @@ function getPlayer(dir) {
     return p;
 }
 
-// for(var i=10;i>0;i--) {
-//     for(var j=10;j>0;j--) {
-//         const size = Math.random()*0.1;
-//         const x = 0.5+i*0.03;
-//         const y = 0.5+j*0.03;
-//         PLAYER_SCHEME_NEW.push([
-//             x,
-//             y,
-//             0.70+0.15-size/2,
-//             0.03,
-//             0.03,
-//             size,
-//             [140,70,45]
-//         ])
-//     }
-// }
-
-
 function getHeart(isOff) {
     let x = [];
     let color = [200, 0, 0];
@@ -1138,29 +1161,36 @@ function getHeart(isOff) {
     return x;
 }
 
-const SWARM_NEW = [
-    // [0.5,0.5, 0.5, 0.5, 0.5, 0.5, [255, 0, 0]],
-]
-for(let j=0;j<5;j++) {
-    for(let i=0;i<10;i++) {
-        
-        SWARM_NEW.push([
-            0.5 + Math.sin(2*Math.PI/10*i)*0.3,
-            0.5 + Math.cos(2*Math.PI/10*i)*0.3,
-            0.5 + Math.cos(2*Math.PI/10*j)*0.3,
-            0.05,
-            0.05,
-            0.05,
-            [200-24*i, 40*j, j*i*0.5, 0.5]
-        ])
+function getSwarm(r) {
+    const s = [];
+    for(let j=0;j<5;j++) {
+        for(let i=0;i<10;i++) {
+            s.push([
+                0.5 + Math.sin(2*Math.PI/10*i)*0.3,
+                0.5 + Math.cos(2*Math.PI/10*i)*0.3,
+                0.5 + Math.cos(2*Math.PI/10*j)*0.3,
+                0.05,
+                0.05,
+                0.05,
+                [200-24*i, 40*j, j*i*0.5, 0.5]
+            ])
+        }
     }
+    return s.map(x => {
+        x = x.slice();
+        x[3] -= Math.sin(2*Math.PI*r)*0.3;
+        x[2] += Math.random()*0.4;
+        x[6] = x[6].slice();
+        x[6][0] += Math.random()*10;
+        x[6][1] += Math.random()*20;
+        x[6][2] -= Math.random()*10;
+        return x;
+    })
 }
 
 function getVirus(r) {
     r = getMultiframePosition(15, frame, r);
-    let v = [
-        // [0.5, 0.5, 0.5, 0.2, 0.2, 0.2, [20, 200, 20]]
-    ];
+    let v = [];
     for(let i=0;i<8;i++) {
         v.push([
             0.5 + Math.sin(2*Math.PI/8*i)*0.4*Math.cos(2*Math.PI*r),
@@ -1195,16 +1225,6 @@ function getMultiframePosition(multi, frame, r) {
     return (frame % multi)/multi + r / (multi*multi);
 }
 
-// PLAYER_SCHEME_NEW.push([
-//     0.5,
-//     0.5,
-//     0.7+0.2,
-//     0.1,
-//     0.1,
-//     0.1,
-//     [255,0,0]
-// ])
-
 
 // const ROBOT_SCHEME = [
 //     // leg ??
@@ -1233,7 +1253,7 @@ function getMultiframePosition(multi, frame, r) {
 //     [0.2, 0.3, [20, 20, 20], 0.1, 0.1, 0.1, 0.6, true],
 //     [0.2, 0.6, darken(RC, 0.2), 0.1, 0.1, 0.2, 0.7, true]
 // ];
-function getRobot() {
+function getRobot() { // FIXME: add arm
         return [
         // [0.5,0.5,0.5, 1, 1, 1, RC],
         // [0.5, 0.5, 1.25, 0.5, 0.5, 0.5, [255, 0, 0]]
@@ -1251,8 +1271,6 @@ function getRobot() {
     ]
 }
 
-// const ROBOT_SCHEME_NEW = convNew(ROBOT_SCHEME);
-
 const SHIELD = [
     [0.5, 0.1, 0.5, 1, 0.01, 1, [50, 50, 200, 0.5]]
 ]
@@ -1261,11 +1279,10 @@ function drawBullet(x, y, opacity = 1) {
     drawBox(x - 0.2, y - 0.2, [200, 50, 50, opacity], 0.1, 0.1, 0.1, 0.6, true);
 }
 
-function drawGoal(x, y, glow) {
+function drawGoal(x, y, glow) { // FIXME: use it at the end of the game.
     const g = Math.sin(frame%10/10+glow/100 * 2*Math.PI);
     drawBox(x, y, [20+g*100, 200, 20+g*100, 0.7-g*0.5], 1, 1, 1,1);
 }
-
 
 
 const grd = c.createLinearGradient(camPos[0] - CW/2, camPos[1] - CH/2, camPos[0] - CW/2, camPos[1] + CH);
@@ -1351,43 +1368,6 @@ function drawMap(r) {
             }
         }
     }
-
-    // drawTextfield('Welcome to the cyberspace xxx');
-
-    // //DRAW TEXTBOX
-
-    // const poz = getPosition(player.pos(r).x, player.pos(r).y)
-    // const hei = 70;
-
-    // c.beginPath();
-    // c.rect(poz[0]-CW/4 - 5, poz[1] - 20 - 1, CW/2, hei);
-    // c.fillStyle = 'red';
-    // c.fill();
-
-    // c.beginPath();
-    // c.rect(poz[0]-CW/4 + 5, poz[1] - 20 + 3, CW/2, hei);
-    // c.fillStyle = 'green';
-    // c.fill();
-
-
-    // c.beginPath();
-    // c.rect(poz[0]-CW/4 - 3, poz[1] - 20 +3, CW/2, hei);
-    // c.fillStyle = 'blue';
-    // c.fill();
-
-    // c.beginPath();
-    // c.rect(poz[0]-CW/4, poz[1] - 20, CW/2, hei);
-    // c.fillStyle = '#000';
-    // c.fill();
-
-
-    // c.font = '20px Courier New';
-    // const cols = ['red', 'green', 'blue', '#FFF'];
-    // const offset = [[-2, 0], [3, 1], [2, -1],[0,0]];
-    // for(var i in cols) {
-    //     c.fillStyle = cols[i];
-    //     c.fillText('Welcome to the cyberspace', poz[0]-CW/4 + 20 + offset[i][0], poz[1] + 20 + offset[i][1]);
-    // }
 }
 
 function drawPlayer(r) {
@@ -1436,11 +1416,9 @@ function drawBackground(r) {
 
     for(var i=-5;i<slices;i++) {
         j++;
-        // rects clearing the circle
         if(i%2==0) { continue }
         c.beginPath();
         c.rect(sunX-sunR,sunY+sunR/slices*i*j*0.1,2*sunR,sunR/slices*j*0.2);
-        // c.rect(sunX, sunY, 10, 10);
         c.fillStyle=grd;
         c.fill();
     }
@@ -1460,7 +1438,7 @@ function drawBackground(r) {
         c.strokeStyle = 'red';
         posX -= u<1 ? 10 : 0;
         posY += u<1 ? 10 : 0;
-        // Mountains
+        // Mountains - FIXME: probably remove it
         for(var i=0;i<count;i++) {
             let fr = Math.floor(frame/10)
             posX += 1/count*CW;
@@ -1468,8 +1446,6 @@ function drawBackground(r) {
             c.lineTo(posX + r*1/count*CW, posY + df);
         }
         c.lineTo(posX+CW/2, sm[1] + CH);
-
-        // c.fill();
         c.stroke();
     }
 
@@ -1542,8 +1518,7 @@ function recomputeFrame() {
             computeCollisions();
             gc();
 
-            if (bots.length < 40 && START_SPAWN) {
-                console.log('Spawning bot');
+            if (bots.length < EN_COUNT && START_SPAWN) {
                 let x = Math.floor(player.x + 5 + Math.random() * 10);
                 let y = Math.floor(player.y+ 5 + Math.random()*15);
                 if (isTile(x, y)) {
@@ -1626,11 +1601,6 @@ function drawPostprocess(r) {
     }
 }
 
-
-
-/// GAME.
-
-
 function drawHud(r) {
     const pos = getPosition(player.pos(r).x, player.pos(r).y, -CW/2, -CH/2);
     const height = 50;
@@ -1641,10 +1611,6 @@ function drawHud(r) {
     c.fill();
     for(var i=0;i<5;i++) {
         convertDrawNew(getHeart(i>=player.health), player.pos(r).x, player.pos(r).y, [1,0], -CW/2  + i*s+s, CH/2);
-        // c.beginPath();
-        // c.rect(pos[0] + padding + i*(height+padding), pos[1] + CH - height - padding, 50, 50);
-        // c.fillStyle = 'green';
-        // c.fill();
     }
     convertDrawNew(getCoin(r), player.pos(r).x, player.pos(r).y, [1,0], +CW/2 - 2*s, CH/2);
     drawTextfield(''+player.coins, r, CW/2 - s/4*5, CH/2 - 20, true, 40);
@@ -1655,8 +1621,7 @@ function updateKeys() {
         player.fire();
     }
     player.isShieldActive = CT.z;
-    let d = [[-1,0],[1,0], [0,1], [0,-1]];
-    ['up','down','left','right'].map((x,i) => { if(CT['arrow'+x]) player.move(d[i][0], d[i][1])});
+    ['up','down','left','right'].map((x,i) => { if(CT['arrow'+x]) player.move(dirs[i][0], dirs[i][1])});
 }
 
 
@@ -1673,7 +1638,7 @@ function draw() {
     drawEnemies(currentFrameMoment);
     drawBullets(currentFrameMoment);
     drawPlayer(currentFrameMoment);
-    drawGoal(0, 0, currentFrameMoment);
+    // drawGoal(0, 0, currentFrameMoment);
     if (currentMode.type === 'STAGE') {
         drawHud(currentFrameMoment);
     }
@@ -1701,36 +1666,6 @@ enterTextMode([
     'Good luck!'
 ]);
 
-
-
-// function introFn(t) {
-    
-// }
-
-
-// let currentMode = 0;
-
-
-// function nextMode() {
-//     currentMode++;
-// }
-
-// function gameLoop() {
-//     const mode = gameModes[currentMode];
-//     console.log('Mode', mode.name);
-
-// }
-
-
-// document.addEventListener('keyup', function(e) {
-//     if (e.key === 'z') {
-//         player.isShieldActive = false;
-//         keys.isZ = false;
-//     } else if (e.key === 'x') {
-//         keys.isX = false;
-//     }
-// });
-
 document.addEventListener('keydown', (e) => {
     CT[e.key.toLowerCase()] = 1;
 });
@@ -1738,44 +1673,3 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('keyup', (e) => {
     CT[e.key.toLowerCase()] = 0;
 })
-
-// document.addEventListener('keydown', function(e) {
-//     let a = [0, 0];
-//     switch(e.key) {
-//         case 'ArrowDown':
-//             player.move(0,1)
-//             break;
-//         case 'ArrowUp':
-//             player.move(0, -1)
-//             break;
-//         case 'ArrowLeft':
-//             player.move(-1, 0)
-//             break;
-//         case 'ArrowRight':
-//             player.move(1, 0)
-//             break;
-//         case 'X':
-//         case 'x':
-//             player.fire();
-//             keys.isX = true;
-//             break;
-//         case 'z':
-//             player.isShieldActive = true;
-//             player.isZ = true;
-//             break;
-//         case '+':
-//             changeScale(s+10);
-//             break;
-//         case 'Enter':
-//             enterTextMode(['Text mode test'])
-//             break;
-//         case '-':
-//         changeScale(s-10);
-//     }
-// });
-
-// window.addEventListener('mousemove', function(e) {
-//     const ratio = ((e.clientY / window.document.body.offsetHeight) - 0.5) * 2;
-//     console.log(ratio);
-//     window.S = 2 + ratio * 5;
-// })
