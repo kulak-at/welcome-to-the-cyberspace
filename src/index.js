@@ -30,44 +30,44 @@ function getNoise(x,y) {
 function isTile(x, y) {
 
     if (Math.abs(x) % 60 > 57 || Math.abs(y) % 60 > 57) {
-        return isBridge(x, y);
+        return isBr(x, y);
     }
 
     return (x >= -52 && x <= -49 && y >=8 && y <= 11) || (getNoise(x,y) < 0.2 || getNoise(x, y) > 0.8) && !(2*x>3*y) && (2*x*y<x+y+10 ) && !(x-30)*(x-30)+(y-10)*(y-10)>1;
 }
 
-function isBridge(x, y) {
+function isBr(x, y) {
     let ax = Math.abs(x) % 60;
     let ay = Math.abs(y) % 60;
     return (ax > 57 || ay > 57) && (ax % 19 > 17 || ay%19 > 17);
 }
 
-function isPartOfDataStream(x, y) {
+function isPODS(x, y) { // is part of data stream
     return y > 8 && y < 12;
 }
 
-let currentMode = {
+let MD = {
     type: 'S',
 };
 
 function enTM(text, noscale) {
     let t = text.shift();
-    let animationFinishFrame = frame + 10;
+    let aFT = frame + 10;
     if (noscale) {
-        animationFinishFrame = frame - 1;
+        aFT = frame - 1;
     }
-    currentMode = {
+    MD = {
         type: 'T',
-        animationFinishFrame: animationFinishFrame,
-        currentText: '',
+        aFT: aFT,
+        cTX: '',
         fullText: t,
         nextLetterTime: 0,
         nextText: text
     }
 };
 
-function enterStageTransitionMode() {
-    currentMode = {
+function Est() {
+    MD = {
         type: 'ST',
         fullScaleOut: frame + 5,
         initialScale: s
@@ -75,42 +75,41 @@ function enterStageTransitionMode() {
 }
 
 function enterStageMode() {
-    currentMode = {
+    MD = {
         type: 'S'
     }
 }
 
-function drawStageTransition(r) {
-    if (frame > currentMode.fullScaleOut) {
+function dsTr(r) {
+    if (frame > MD.fullScaleOut) {
         changeScale(defaultScale);
         enterStageMode();
     } else {
-        let fr = (currentMode.fullScaleOut - frame)/5 + r/(5*5);
-        changeScale(defaultScale + fr * (currentMode.initialScale - defaultScale));
+        let fr = (MD.fullScaleOut - frame)/5 + r/(5*5);
+        changeScale(defaultScale + fr * (MD.initialScale - defaultScale));
     }
 }
 
-function drawTextFrame(r) {
-    if (currentMode.currentText.length === currentMode.fullText.length && isKey('x')) {
-        // FIXME: wait for the close sign.
-        if (currentMode.nextText.length) {
-            enTM(currentMode.nextText, true);
+function dTF(r) {
+    if (MD.cTX.length === MD.fullText.length && isKey('x')) {
+        if (MD.nextText.length) {
+            enTM(MD.nextText, true);
         } else if (!player.health) {
             location.reload();
         } else {
-            enterStageTransitionMode();
+            Est();
         }
         return;
-    } else if (frame <= currentMode.animationFinishFrame) {
-        let fr = (10 - (currentMode.animationFinishFrame - frame))/10 + r/100;
+    } else if (frame <= MD.aFT) {
+        let fr = (10 - (MD.aFT - frame))/10 + r/100;
         changeScale(defaultScale + fr * 80);
         return;
-    } else if (currentMode.nextLetterTime < (frame + r) && currentMode.currentText.length !== currentMode.fullText.length) {
-        currentMode.currentText += currentMode.fullText[currentMode.currentText.length];
-        currentMode.nextLetterTime = 0;
+    } else if (MD.nextLetterTime < (frame + r) && MD.cTX.length !== MD.fullText.length) {
+        MD.cTX += MD.fullText[MD.cTX.length];
+        MD.nextLetterTime = 0;
     }
 
-    drawTextfield(currentMode.currentText);
+    drawTextfield(MD.cTX);
 }
 
 class Obj {
@@ -119,7 +118,7 @@ class Obj {
         this.y = y;
         this.a = [0,0];
         this.d = [0, 1];
-        this._scheme = null;
+        this._s = null;
     }
 
     pR(scheme, t) {
@@ -127,7 +126,7 @@ class Obj {
     }
 
     render(t) {
-        let scheme = this._scheme(t).slice().map(s => s.slice());
+        let scheme = this._s(t).slice().map(s => s.slice());
         scheme = this.pR(scheme, t);
 
         if (this.isHit) {
@@ -155,7 +154,7 @@ class Obj {
         }
 
         let a = this.pos(t);
-        return convertDrawNew(scheme, a.x, a.y, this.d);
+        return conv(scheme, a.x, a.y, this.d);
     }
 
     pos(r) {
@@ -169,7 +168,7 @@ class Obj {
 class Health extends Obj {
     constructor(x, y) {
         super(x,y);
-        this._scheme = () => getHeart();
+        this._s = () => getHeart();
         this.ct = 'H';
     }
 }
@@ -177,7 +176,7 @@ class Health extends Obj {
 class Coin extends Obj {
     constructor(x,y) {
         super(x,y);
-        this._scheme = getCoin;
+        this._s = getCoin;
         this.ct = 'C';
     }
 }
@@ -215,7 +214,7 @@ class Enemy extends Obj {
             } else {
                 a[1]--;
             }
-            if (isTile(this.x+a[0], this.y+a[1]) && !isOccupied(this.x+a[0], this.y+a[1])) {
+            if (isTile(this.x+a[0], this.y+a[1]) && !isOc(this.x+a[0], this.y+a[1])) {
                 this.x += a[0];
                 this.y += a[1];
                 this.a = a;
@@ -271,7 +270,7 @@ class Bot extends Enemy {
     constructor(x, y) {
         super(x,y);
         this.health = 3;
-        this._scheme = getRobot;
+        this._s = () => getRobot(this.d);
         this._moveRatio = 0.5;
         this._fireRatio = 0.05;
     }
@@ -280,25 +279,6 @@ class Bot extends Enemy {
 
         if (this.isMoving()) {
             s = moveLeg(s, [0,1,2,3], r*2);
-            // s[0] = s[0].slice();
-            // s[1] = s[1].slice();
-            // s[2] = s[2].slice();
-            // s[3] = s[3].slice();
-            // const j = r*2;
-            // if (j <= 0.5) {
-            //     s[0][2] += j*0.2;
-            //     s[1][2] += j*0.2;
-            // } else if(j <= 1) {
-            //     s[0][2] += 0.2 - (j-0.5)*0.2;
-            //     s[1][2] += 0.2 - (j-0.5)*0.2;
-            // } else if (j <= 1.5){
-            //     s[2][2] += (j-1)*0.2;
-            //     s[3][2] += (j-1)*0.2;
-            // } else {
-            //     s[2][2] += 0.2 - (j-1.5)*0.2;
-            //     s[3][2] += 0.2 - (j-1.5)*0.2;
-
-            // }
         }
         return s;
     }
@@ -337,7 +317,7 @@ class Agrobot extends Bot {
 class Swarm extends Bot {
     constructor(x, y) {
         super(x,y);
-        this._scheme = (r) => getSwarm(r);
+        this._s = (r) => getSwarm(r);
     }
 
     fire() {
@@ -349,13 +329,13 @@ class Swarm extends Bot {
 class Virus extends Enemy {
     constructor(x,y) {
         super(x,y);
-        this._scheme = getVirus;
+        this._s = getVirus;
         this._moveRatio = 0.1;
     }
 }
 
 
-const ALLOWED_FOES = [Virus];
+const ALF = [Virus];
 
 let EN_COUNT = 10;
 let SHIELD_ACTIVE = false;
@@ -367,11 +347,11 @@ const triggers = [
             lead.volNext(3);
             enTM([
                 'This is our main datastream.',
-                'All the information on the internet runs through here',
+                'All the information on the internet runs through here.',
                 'Behind this bridge you can find many unpleastant things',
                 'Viruses, bots, swarms of data',
-                'Be prepared',
                 'You can use your gun by pressing X',
+                'Be prepared.',
             ]);
             START_SPAWN = true;
         }
@@ -382,27 +362,29 @@ const triggers = [
             enTM([
                 'This is a coin',
                 'It is the key to restore online connection',
-                'Do not ask me how does it work, just trust me',
+                'Do not ask me how it works, just trust me',
                 'Gather coins to unlock the way to freedom',
-                'But reacher you are, the stronger are the opponents'
+                'But remember: The reacher you get, the stronger are the enemies!'
             ])
         }
     },
     {
         t: () => player.coins >= 5,
         v: function() {
-            ALLOWED_FOES.push(Bot);
+            ALF.push(Bot);
             EN_COUNT = 15;
             enTM([
-                'You have collected some coins',
-                'Now you can face more powerful foes.'
+                'That\'s a good start!',
+                'Now you can face more powerful foes.',
+                'They are equiped with lasers, similiar to the one you have',
+                'Try not to get hit.'
             ]);
         }
     },
     {
         t: () => player.coins > 60,
         v: () => {
-            grd2 = mgd('#ff0', '#660');
+            grd2 = mgd('#f00', '#600');
         }
     },
     {
@@ -417,15 +399,14 @@ const triggers = [
             EN_COUNT = 20;
             SHIELD_ACTIVE = true;
             enTM([
-                'Now you can meet more agresive bots.',
-                'They have been infected and are even less friendly',
-                'They will shoot you on site',
-                'But I have upgraded your avatar with the shield',
+                'Now you will face much more agresive bots.',
+                'They have been infected and they will try to shoot you on site.',
+                'I have upgraded your avatar with the shield',
                 'Press Z to activate it',
                 'It works in the single direction though.',
                 'Be quick or be dead!'
             ]);
-            ALLOWED_FOES.push(Agrobot);
+            ALF.push(Agrobot);
         },
     },
     {
@@ -434,18 +415,20 @@ const triggers = [
             EN_COUNT = 30;
             enTM([
                 'You are getting rich quite fast',
-                'Remember, gather 100 coins and face the final boss',
+                'Actually, you are almost half way there',
+                'Gather 100 coins and you will set yourself free',
                 'But before that, the wild swarm can appear',
-                'It shoot in all directions'
+                'It shoots in all directions. This is the deadliest enemy here.',
+                'Watch out!'
             ]);
-            ALLOWED_FOES.push(Swarm);
-            ALLOWED_FOES.shift();
+            ALF.push(Swarm);
+            ALF.shift();
         }
     },
     {
         t: () => !player.health,
         v: function() {
-            enTM(['G A M E  O V E R', 'You have gathered ' + player.coins + ' coins!']);
+            enTM(['G A M E  O V E R', 'You have collected ' + player.coins + ' coins!']);
         }
     },
     {
@@ -456,10 +439,11 @@ const triggers = [
                 'Congratulations!',
                 'You have restored online connection',
                 'You are saved!',
-                'You can now play in the endless mode.',
+                'You can play in the endless mode now.',
                 'Every 10 coins will activate disco mode for a while (epilepsy warning)',
                 'Thank you for playing.',
-                'Special thanks to my inspiration, N.'
+                'Special thanks to my inspiration, N.',
+                'Game by Kacper "kulak" Kula. 2018.'
             ]);
         }
     },
@@ -477,7 +461,7 @@ const triggers = [
 
 
 function computeTriggers(x, y) {
-    triggers.forEach(t => {
+    triggers.map(t => {
         if (t.t(x,y) && !t.used) {
             t.v();
             t.used = true && !t.d;
@@ -490,10 +474,10 @@ class Player extends Enemy {
         super(x, y);
         this._nextA = [0, 0];
         this.health = 5;
-        this.isShieldActive = false;
+        this.isSA = false;
         this.coins = 0;
-        this._scheme = (r) => getPlayer(this.d);
-        // this._scheme = () => getPlayer(this.d);
+        this._s = (r) => getPlayer(this.d);
+        // this._s = () => getPlayer(this.d);
     }
     pR(s, r) {
 
@@ -501,7 +485,7 @@ class Player extends Enemy {
             s = moveLeg(s, [1,3,2,4], r*2);
         }
 
-        if (this.isShieldActive) {
+        if (this.isSA) {
             return [...s, ...SHIELD];
         }
         return s;
@@ -516,7 +500,7 @@ class Player extends Enemy {
         this._nextA = [0, 0];
     }
     move(x,y) {
-        if (isTile(this.x+x, this.y+y) && !isOccupied(this.x+x, this.y+y)) {
+        if (isTile(this.x+x, this.y+y) && !isOc(this.x+x, this.y+y)) {
             this._nextA = [x, y];
             return true;
         } else {
@@ -547,8 +531,6 @@ class Player extends Enemy {
         }
     }
 }
-window.c = c;
-window.gP = getPosition;
 
 class Camera {
     constructor(player) {
@@ -557,7 +539,7 @@ class Camera {
     }
     render(r) {
         c.translate(-this._c[0], -this._c[1]);
-        let q = getPosition(this.p.pos(r).x, this.p.pos(r).y); // fixme: probably optimize
+        let q = gPos(this.p.pos(r).x, this.p.pos(r).y); // fixme: probably optimize
         this._c = [-q[0], -q[1]]
         c.translate.apply(c, this._c);
     }
@@ -728,81 +710,6 @@ const bass = (hz) => {
     return x;
 }
 
-// const mus = new Music([].concat(bass(440/4), bass(400/4), bass(470/4), bass(440/4)));
-// mus.start();
-
-// const mus = new Music([
-//     [2, 440],
-//     [2, -1],
-//     [2, 440],
-//     [2, -1],
-//     [2, 490],
-//     [2, -1],
-//     [2, 490],
-//     [2, -1],
-//     [2, 440],
-//     [2, -1],
-//     [2, 440],
-//     [2, -1],
-//     [2, 450],
-//     [2, -1],
-//     [2, 450],
-//     [2, -1],
-// ]);
-// mus.start();
-
-// const mus2 = new Music([
-//     [2, -1],
-//     [2, 2*440],
-//     [2, -1],
-//     [2, 2*490],
-//     [2, -1],
-//     [2, 2*490],
-//     [2, -1],
-//     [2, 2*440],
-//     [2, -1],
-//     [2, 2*440],
-//     [2, -1],
-//     [2, 2*450],
-//     [2, -1],
-//     [2, 2*450],
-//     [2, -1],
-//     [2, 2*440],
-// ])
-// mus2.start();
-
-const dr = 4;
-const sg = 0.5;
-
-// const st = new Music([
-//     [duration, 65.4], // c e g b c
-//     [duration, 82.4],
-//     [duration, 98.0],
-//     [duration, 123.5],
-//     [duration, 130.8],
-//     [duration, 123.5],
-//     [duration, 98.0],
-//     [duration, 82.4]
-// ])
-
-// st.start();
-
-const MS1 = [
-    [dr-sg, 65.4], // c
-    [sg, 0],
-    [dr, 65.4], // c
-    [4*dr, 0], // pause
-    [dr-sg, 77.78], // Eb
-    [sg, 0],
-
-    [dr-sg, 77.78],
-    [2*dr, 0],
-    [dr-sg, 68.29], // Db
-    [sg, 0],
-    [dr, 68.29], // Db
-    [2*dr, 0], // pause
-];
-
 function rep(x, times) {
     let y = [];
     for(let i=0;i<times;i++) {
@@ -818,7 +725,6 @@ let makeMusic = m => m.map(n => [n[0], 27.6*Math.pow(2, (n[1]-21)/12)])
 let DR = 4;
 let DX = 2;
 
-// NEW MUSIC
 let NEW_BASS = makeMusic(flat([
     rep([DR, 24], 8),
     rep([DR, 32], 8),
@@ -869,15 +775,7 @@ lead2.start();
 const lead3 = new Music(NEW_LEAD, +5, 'square', 0);
 lead3.start();
 
-// const bs2 = new Music(MS1, 3);
-// bs2.start();
-
-
-// const bs3 = new Music(MS1, -3);
-// bs3.start();
-
-
-function isOccupied(x, y) {
+function isOc(x, y) {
     return [...bots,player].reduce((a,b) => a || b.x == x && b.y == y, 0);
 
 }
@@ -901,7 +799,7 @@ const ALPHA = 0.2;
 
 window.S = 2;
 
-function getPosition(x, y, dx=0, dy=0) {
+function gPos(x, y, dx=0, dy=0) {
     return [
         (x - y)*s + dx,
         (x + y)*s/window.S + dy
@@ -910,10 +808,10 @@ function getPosition(x, y, dx=0, dy=0) {
 
 function drawTop(x, y, color, w=1, h=1, dx = 0, dy = 0, borderColor) {
     c.beginPath();
-    c.moveTo.apply(c, getPosition(x,y, dx, dy))
-    c.lineTo.apply(c, getPosition(x-w, y, dx, dy));
-    c.lineTo.apply(c, getPosition(x-w,y-h, dx, dy));
-    c.lineTo.apply(c, getPosition(x, y-h, dx, dy));
+    c.moveTo.apply(c, gPos(x,y, dx, dy))
+    c.lineTo.apply(c, gPos(x-w, y, dx, dy));
+    c.lineTo.apply(c, gPos(x-w,y-h, dx, dy));
+    c.lineTo.apply(c, gPos(x, y-h, dx, dy));
     c.closePath();
     c.lineWidth = fixSize;
     c.fillStyle = color;
@@ -926,12 +824,12 @@ function drawTop(x, y, color, w=1, h=1, dx = 0, dy = 0, borderColor) {
 
 function drawRight(x, y, color, w, h, dx = 0, dy = 0, borderColor = color) {
     c.beginPath();
-    c.moveTo.apply(c, getPosition(x,y, dx, dy));
-    let p = getPosition(x, y-w, dx, dy);
+    c.moveTo.apply(c, gPos(x,y, dx, dy));
+    let p = gPos(x, y-w, dx, dy);
     c.lineTo.apply(c, p);
     p[1] += h*s;
     c.lineTo.apply(c, p);
-    p = getPosition(x, y, dx, dy);
+    p = gPos(x, y, dx, dy);
     p[1] += h*s;
     c.lineTo.apply(c, p, dx, dy);
     c.closePath();
@@ -946,12 +844,12 @@ function drawRight(x, y, color, w, h, dx = 0, dy = 0, borderColor = color) {
 
 function drawLeft(x, y, color, w, h, dx = 0, dy = 0, borderColor = color) {
     c.beginPath();
-    c.moveTo.apply(c, getPosition(x,y, dx, dy));
-    let p = getPosition(x-w, y, dx, dy);
+    c.moveTo.apply(c, gPos(x,y, dx, dy));
+    let p = gPos(x-w, y, dx, dy);
     c.lineTo.apply(c, p);
     p[1] += h*s;
     c.lineTo.apply(c, p);
-    p = getPosition(x,y, dx, dy);
+    p = gPos(x,y, dx, dy);
     p[1] += h*s;
     c.lineTo.apply(c,p);
     c.closePath();
@@ -973,12 +871,12 @@ function col(c) {
     }
 }
 
-function shade(color, sh, alpha) {
-    var al = color.length > 3 ? color[3] : 1;
+function shade(c, sh, alpha) {
+    var al = c.length > 3 ? c[3] : 1;
     return [
-        color[0] + (sh[0] - color[0]) * alpha,
-        color[1] + (sh[1] - color[1]) * alpha,
-        color[2] + (sh[2] - color[2]) * alpha,
+        c[0] + (sh[0] - c[0]) * alpha,
+        c[1] + (sh[1] - c[1]) * alpha,
+        c[2] + (sh[2] - c[2]) * alpha,
         al
     ]
 }
@@ -992,7 +890,7 @@ function lighten(color, alpha) {
 }
 
 
-function drawBox(x, y, color = [128,128,128], w = 1, d = 1, h = 1, raise = 0, calculateFromTop = false, borderColor, ddx = 0, ddy = 0) {
+function dBx(x, y, color = [128,128,128], w = 1, d = 1, h = 1, raise = 0, calculateFromTop = false, borderColor, ddx = 0, ddy = 0) {
     let dy = ddy;
     if (calculateFromTop) {
         dy = -h*s;
@@ -1009,25 +907,7 @@ function clear() {
     c.clearRect(-canvas.width*cM, -canvas.height*cM, canvas.width*cM*2, canvas.height*cM*2);
 }
 
-function convertToDraw(rec, x, y, dir = [0, 1]) {
-    rec.map(r => {
-        r = r.slice();
-        r[0] = x - r[0];
-        r[1] = y - r[1];
-        drawBox.apply(null, r);
-    })
-}
-
-
-function convertDrawNew(rec, x, y, dir, dx = 0, dy = 0) { // [x, y, z, w, d, h, col]
-    // console.log('DIRECTION', dir);
-
-    // if (dir[0]) {
-    //     let ax = x;
-    //     x = y;
-    //     y = ax;
-    // }
-
+function conv(rec, x, y, dir, dx = 0, dy = 0) { // [x, y, z, w, d, h, col]
     if (dir[1] < 0) {
         rec = rec.map(x => {
             x = x.slice();
@@ -1063,7 +943,7 @@ function convertDrawNew(rec, x, y, dir, dx = 0, dy = 0) { // [x, y, z, w, d, h, 
     }
 
     // const f = (x) => {
-    //     const p = getPosition(x[0] + x[3]/2, x[1]+x[4]/2);
+    //     const p = gPos(x[0] + x[3]/2, x[1]+x[4]/2);
     //     return p[2] + p[0] + p[1];
     // }
 
@@ -1121,7 +1001,7 @@ function convertDrawNew(rec, x, y, dir, dx = 0, dy = 0) { // [x, y, z, w, d, h, 
         // console.log(dir);
 
         // console.log('DRAW', x - xx + w/2, y - yx + d/2, col, w, d, h, z - h/2, false);
-        drawBox(x - xx + w/2, y - yx + d/2, col, w, d, h, z + h/2, false, false, dx, dy);
+        dBx(x - xx + w/2, y - yx + d/2, col, w, d, h, z + h/2, false, false, dx, dy);
     })
 }
 
@@ -1286,7 +1166,7 @@ function getMultiframePosition(multi, frame, r) {
 }
 
 
-// const ROBOT_SCHEME = [
+// const ROBOT_s = [
 //     // leg ??
 //     [0.3, 0.4, RC, 0.1, 0.3, 0.1],
 //     [0.3, 0.6, RC, 0.1, 0.1, 0.5, 0, true],
@@ -1344,12 +1224,7 @@ const SHIELD = [
 ]
 
 function drawBullet(x, y, opacity = 1) {
-    drawBox(x - 0.2, y - 0.2, [200, 50, 50, opacity], 0.1, 0.1, 0.1, 0.6, true);
-}
-
-function drawGoal(x, y, glow) { // FIXME: use it at the end of the game.
-    const g = Math.sin(frame%10/10+glow/100 * 2*Math.PI);
-    drawBox(x, y, [20+g*100, 200, 20+g*100, 0.7-g*0.5], 1, 1, 1,1);
+    dBx(x - 0.2, y - 0.2, [200, 50, 50, opacity], 0.1, 0.1, 0.1, 0.6, true);
 }
 
 let mgd = (d, e) => {
@@ -1367,7 +1242,7 @@ function splitText(text, size=40) {
     let res=[];
     let curr = '';
 
-    t.forEach(t => {
+    t.map(t => {
         if ((curr + t).length >= size) {
             res.push(curr + ' ' + t);
             curr = '';
@@ -1382,7 +1257,7 @@ function splitText(text, size=40) {
 }
 
 function drawTextfield(text, r = 0, dx=0, dy=0, noFrame, size=20) {
-    const poz = getPosition(player.pos(r).x, player.pos(r).y)
+    const poz = gPos(player.pos(r).x, player.pos(r).y)
     const layers = [
         [-5, -1, 'red'],
         [5, 3, 'green'],
@@ -1423,15 +1298,15 @@ function drawMap(r) {
     for(let i=player.x-mapSize;i<player.x+mapSize;i++) {
         for(let j=player.y-mapSize;j<player.y+mapSize;j++) {
             if (isTile(i,j)) {
-                if (isBridge(i,j)) {
-                    drawBox(i,j,[100, 100, 100, 0.9], 1, 1, 0.8, 0, false, grd2);
+                if (isBr(i,j)) {
+                    dBx(i,j,[100, 100, 100, 0.9], 1, 1, 0.8, 0, false, grd2);
                 } else {
-                    drawBox(i,j,[0, 0, 0, 0.9], 1, 1, 0.8, 0, false, grd2);
+                    dBx(i,j,[0, 0, 0, 0.9], 1, 1, 0.8, 0, false, grd2);
                 }
-            } else if (isPartOfDataStream(i,j)) {
+            } else if (isPODS(i,j)) {
                 const f = ((frame%10)/10 + r/100);
-                drawBox(i+0.4+f, j+0.4+Math.sin(f*Math.PI)*0.2, [50,255,0, 0.8], 0.2, 0.2, 0.2, false, false, 'rgba(0,0,0,0)');
-                drawBox(i+0.7+f*2, j+0.2*0.356, [20,255,50, 1], 0.2, 0.2, 0.2, false, false, 'rgba(0,0,0,0)');
+                dBx(i+0.4+f, j+0.4+Math.sin(f*Math.PI)*0.2, [50,255,0, 0.8], 0.2, 0.2, 0.2, false, false, 'rgba(0,0,0,0)');
+                dBx(i+0.7+f*2, j+0.2*0.356, [20,255,50, 1], 0.2, 0.2, 0.2, false, false, 'rgba(0,0,0,0)');
             }
         }
     }
@@ -1452,7 +1327,7 @@ for(let i=0;i<300;i++) {
 
 function drawBackground(r) {
     c.fillStyle=grd;
-    const sm = getPosition(player.pos(r).x, player.pos(r).y, -CW/2, -CH/2);
+    const sm = gPos(player.pos(r).x, player.pos(r).y, -CW/2, -CH/2);
     c.fillRect(sm[0], sm[1], CW, CH);
     for(var s of stars) {
         c.beginPath();
@@ -1489,41 +1364,6 @@ function drawBackground(r) {
         c.fillStyle=grd;
         c.fill();
     }
-
-
-    const count = 500;
-
-    let u = 2;
-    while(u--) {
-        // console.log('Drawing', u);
-        let posX = sm[0];
-        let posY = sm[1] + CH/5*2;
-
-        c.beginPath();
-        c.moveTo(posX - 100, posY + CH / 2);
-        c.fillStyle=u >= 1 ?'#BD3CC0' : 'rgba(50, 50, 50, 0.4)';
-        c.strokeStyle = 'red';
-        posX -= u<1 ? 10 : 0;
-        posY += u<1 ? 10 : 0;
-        // Mountains - FIXME: probably remove it
-        for(var i=0;i<count;i++) {
-            let fr = Math.floor(frame/10)
-            posX += 1/count*CW;
-            let df = -i/count*CH/1000 + getNoise((fr+i)*4543.54, (i+fr)*4.13) * (CH / 10) *(i%15)/15;
-            c.lineTo(posX + r*1/count*CW, posY + df);
-        }
-        c.lineTo(posX+CW/2, sm[1] + CH);
-        c.stroke();
-    }
-
-
-    // SOME RETRO TEXT
-    c.font = '30px Arial';
-    c.fillStyle ='#000';
-    c.fillText('' + player.x + ','+ player.y,sm[0] + 33, sm[1] + 43)
-    c.fillStyle = '#FFF';
-    c.fillText('' + player.x + ','+ player.y,sm[0] + 30, sm[1] + 40)
-
 }
 
 function drawEnemies(r) {
@@ -1541,7 +1381,7 @@ function computeCollisions() {
             for(var i=0;i<BULLET_SPEED;i++) {
                 if (b.x + b.a[0]*i === bot.x && b.y + b.a[1]*i === bot.y) {
                     // console.log('HIT');
-                    if (!(bot.isShieldActive && bot.d[0]*b.a[0] + bot.d[1]*b.a[1] < 0)) {
+                    if (!(bot.isSA && bot.d[0]*b.a[0] + bot.d[1]*b.a[1] < 0)) {
                         bot.hit();
                     }
                     b.togc = true;
@@ -1567,7 +1407,7 @@ function gc() {
 function recomputeFrame() {
     let now = +(new Date());
     if (now > nextFrame) {
-        if (currentMode.type === 'S') {
+        if (MD.type === 'S') {
             bots.map(b => b.isHit = false)
             player.isHit = false;
             bots = bots.filter(b => {
@@ -1591,9 +1431,9 @@ function recomputeFrame() {
             if (bots.length < EN_COUNT && START_SPAWN) {
                 let x = Math.floor(player.x + 5 + rnd() * 10);
                 let y = Math.floor(player.y+ 5 + rnd()*15);
-                if (isTile(x, y) && !isOccupied(x, y)) {
-                    let i = Math.floor(ALLOWED_FOES.length * rnd());
-                    let C = ALLOWED_FOES[i];
+                if (isTile(x, y) && !isOc(x, y)) {
+                    let i = Math.floor(ALF.length * rnd());
+                    let C = ALF[i];
                     bots.push(new C(x, y));
                 }
             }
@@ -1625,7 +1465,7 @@ let weirdFrameX = 0;
 let weirdFrameY = 0;
 
 function drawPostprocess(r) {
-    const pos = getPosition(player.pos(r).x, player.pos(r).y, -CW/2, -CH/2);
+    const pos = gPos(player.pos(r).x, player.pos(r).y, -CW/2, -CH/2);
     let cn = CH;
     let f = getMultiframePosition(10, frame, r);
     for(var i=0;i<cn;i++) {
@@ -1672,7 +1512,7 @@ function drawPostprocess(r) {
 }
 
 function drawHud(r) {
-    const pos = getPosition(player.pos(r).x, player.pos(r).y, -CW/2, -CH/2);
+    const pos = gPos(player.pos(r).x, player.pos(r).y, -CW/2, -CH/2);
     const height = 50;
     const padding = 20;
     c.beginPath();
@@ -1680,9 +1520,9 @@ function drawHud(r) {
     c.fillStyle = 'rgba(0,0,0,0.5)';
     c.fill();
     for(var i=0;i<5;i++) {
-        convertDrawNew(getHeart(i>=player.health), player.pos(r).x, player.pos(r).y, [1,0], -CW/2  + i*s+s, CH/2);
+        conv(getHeart(i>=player.health), player.pos(r).x, player.pos(r).y, [1,0], -CW/2  + i*s+s, CH/2);
     }
-    convertDrawNew(getCoin(r), player.pos(r).x, player.pos(r).y, [1,0], +CW/2 - 2*s, CH/2);
+    conv(getCoin(r), player.pos(r).x, player.pos(r).y, [1,0], +CW/2 - 2*s, CH/2);
     drawTextfield(''+player.coins, r, CW/2 - s/4*5, CH/2 - 20, true, 40);
 }
 
@@ -1715,38 +1555,37 @@ function updateKeys() {
     if(isKey('x')) {
         player.fire();
     }
-    player.isShieldActive = SHIELD_ACTIVE && isKey('z');
+    player.isSA = SHIELD_ACTIVE && isKey('z');
     darr.map((x,i) => { if(isKey('arrow'+x)) player.move(dirs[i][0], dirs[i][1])});
 }
 
 
 function draw() {
-    let currentFrameMoment = recomputeFrame();
-    let globalFrameMoment = currentFrameMoment;
-    if (currentMode.type !== 'S') {
-        currentFrameMoment = 0;
+    let fr = recomputeFrame();
+    let gfr = fr;
+    if (MD.type !== 'S') {
+        fr = 0;
     }
     clear();
-    camera.render(currentFrameMoment);
-    drawBackground(currentFrameMoment);
-    drawMap(currentFrameMoment);
-    drawEnemies(currentFrameMoment);
-    drawBullets(currentFrameMoment);
-    drawPlayer(currentFrameMoment);
-    // drawGoal(0, 0, currentFrameMoment);
-    if (currentMode.type === 'S') {
-        drawHud(currentFrameMoment);
+    camera.render(fr);
+    drawBackground(fr);
+    drawMap(fr);
+    drawEnemies(fr);
+    drawBullets(fr);
+    drawPlayer(fr);
+    if (MD.type === 'S') {
+        drawHud(fr);
     }
 
-    if (currentMode.type === 'T') {
-        drawTextFrame(globalFrameMoment);
+    if (MD.type === 'T') {
+        dTF(gfr);
     }
 
-    if (currentMode.type === 'ST') {
-        drawStageTransition(globalFrameMoment);
+    if (MD.type === 'ST') {
+        dsTr(gfr);
     }
 
-    drawPostprocess(globalFrameMoment);
+    drawPostprocess(gfr);
 
     requestAnimationFrame(draw);
 }
@@ -1757,8 +1596,10 @@ enTM([
     'Game by' + ' '.repeat(10) + 'kulak',
     'You must be the new one.',
     'There has been a blackout in your world and everything went offline',
-    'Now you have to fight your way through the cyberspace to restore the connection!',
-    'It\'s usually a calm place but we are experiencing glitch invasion right now so please proceed with causion.',
+    "You've been transfered here to restore the connection",
+    'Now you have to fight your way through the cyberspace!',
+    'It\'s usually a calm place but we are experiencing glitch invasion right now so please proceed with caution.',
+    'Head straight and try to cross the river',
     'Good luck!'
 ]);
 
