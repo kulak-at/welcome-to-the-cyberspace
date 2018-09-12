@@ -343,8 +343,7 @@ let SHIELD_ACTIVE = false;
 const triggers = [
     {
         t: (x, y) => y === 11,
-        used: false,
-        trigger: () => {
+        v: () => {
             lead.volNext(3);
             enterTextMode([
                 'This is our main datastream.',
@@ -359,8 +358,7 @@ const triggers = [
     },
     {
         t: (x, y) => x === -20,
-        used: false,
-        trigger: () => {
+        v: () => {
             enterTextMode([
                 'This is a coin',
                 'It is the key to restore online connection',
@@ -372,8 +370,7 @@ const triggers = [
     },
     {
         t: () => player.coins >= 5,
-        used: false,
-        trigger: function() {
+        v: function() {
             ALLOWED_FOES.push(Bot);
             EN_COUNT = 15;
             enterTextMode([
@@ -383,9 +380,20 @@ const triggers = [
         }
     },
     {
+        t: () => player.coins > 60,
+        v: () => {
+            grd2 = mgd('#ff0', '#660');
+        }
+    },
+    {
+        t: () => player.coins >= 20,
+        v: () => {
+            grd = mgd('#3F8', '#2EA');
+        }
+    },
+    {
         t: () => player.coins >= 25,
-        used: false,
-        trigger: () => {
+        v: () => {
             EN_COUNT = 20;
             SHIELD_ACTIVE = true;
             enterTextMode([
@@ -402,8 +410,7 @@ const triggers = [
     },
     {
         t: () => player.coins >= 40,
-        used: false,
-        trigger: () => {
+        v: () => {
             EN_COUNT = 30;
             enterTextMode([
                 'You are getting rich quite fast',
@@ -417,8 +424,32 @@ const triggers = [
     },
     {
         t: () => !player.health,
-        trigger: function() {
+        v: function() {
             enterTextMode(['G A M E  O V E R', 'You have gathered ' + player.coins + ' coins!']);
+        }
+    },
+    {
+        t: () => player.coins >= 100,
+        v: () => {
+            grd = mgd('#3F8', '#2EA');
+            enterTextMode([
+                'Congratulations!',
+                'You have restored online connection',
+                'You are saved!',
+                'You can now play in the endless mode.',
+                'Every 10 coins will activate disco mode for a while (epilepsy warning)',
+                'Thank you for playing.'
+            ]);
+        }
+    },
+    {
+        t: () => player.coins > 100 && player.coins % 10 == 0,
+        d: true,
+        v: () => {
+            grd = mgd(
+                col([Math.random()*255, Math.random()*255,Math.random()*255]),
+                col([Math.random()*255, Math.random()*255,Math.random()*255])
+            );
         }
     }
 ]
@@ -427,8 +458,8 @@ const triggers = [
 function computeTriggers(x, y) {
     triggers.forEach(t => {
         if (t.t(x,y) && !t.used) {
-            t.trigger();
-            t.used = true;
+            t.v();
+            t.used = true && !t.d;
         }
     });
 }
@@ -441,6 +472,7 @@ class Player extends Enemy {
         this.isShieldActive = false;
         this.coins = 0;
         this._scheme = (r) => getPlayer(this.d);
+        // this._scheme = () => wtf_SCHEME_NEW;
     }
     preRender(scheme, r) {
 
@@ -1118,10 +1150,9 @@ function getPlayer(dir) {
         dirs = [[-1, 0], [0,1]];
     }
     if (dir[0]+dir[1] > 0) {
-
        p.push([0.45, 0.35, 0.7, 0.05, 0.001, 0.05, [0, 0, 0]]);
        p.push([0.6, 0.35, 0.7, 0.05, 0.001, 0.05, [0, 0, 0]]);
-    p.push([0.525, 0.35, 0.6, 0.03, 0.001, 0.03, [200, 60, 50]]);
+        p.push([0.525, 0.35, 0.6, 0.03, 0.001, 0.03, [200, 60, 50]]);
     }
     for(let d of dirs) {
         for(var i=0;i<10;i++) {
@@ -1304,15 +1335,14 @@ function drawGoal(x, y, glow) { // FIXME: use it at the end of the game.
     drawBox(x, y, [20+g*100, 200, 20+g*100, 0.7-g*0.5], 1, 1, 1,1);
 }
 
-
-const grd = c.createLinearGradient(camPos[0] - CW/2, camPos[1] - CH/2, camPos[0] - CW/2, camPos[1] + CH);
-grd.addColorStop(0, '#8f27a8');
-grd.addColorStop(1, '#33B');
-
-const grd2 = c.createLinearGradient(camPos[0] - CW/2, camPos[1] - CH/2, camPos[0] - CW/2, camPos[1] + CH);
-grd2.addColorStop(0, 'rgba(28, 206,52, 0.5)');
-grd2.addColorStop(1, 'rgba(226, 217,3, 0.5)');
-
+let mgd = (d, e) => {
+    let g = c.createLinearGradient(camPos[0] - CW/2, camPos[1] - CH/2, camPos[0] - CW/2, camPos[1] + CH);
+    g.addColorStop(0, d);
+    g.addColorStop(1, e);
+    return g;
+}
+let grd = mgd('#8f27a8','#33B');
+let grd2 = mgd('rgba(28, 206,52, 0.5)', 'rgba(226, 217,3, 0.5)');
 
 function splitText(text, size=40) {
 
@@ -1709,6 +1739,7 @@ function draw() {
 draw();
 enterTextMode([
     'Welcome to the cyberspace' + ' '.repeat(35) + '(PRESS X to continue)',
+    'Game by' + ' '.repeat(10) + 'kulak',
     'You must be the new one.',
     'There have been a blackout in your world and everything went offline',
     'Now you have to fight your way through the cyberspace to restore the connection!',
