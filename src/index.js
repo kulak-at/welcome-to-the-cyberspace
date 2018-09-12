@@ -11,6 +11,7 @@ let D = 100032.4524;
 let E = 3.3262;
 const RC = [170, 170, 170];
 const dirs = [[-1,0],[1,0], [0,1], [0,-1]];
+const darr = ['left','right','down','up'];
 
 let START_SPAWN = false;
 
@@ -89,7 +90,7 @@ function drawStageTransition(r) {
 }
 
 function drawTextFrame(r) {
-    if (currentMode.currentText.length === currentMode.fullText.length && CT.x) {
+    if (currentMode.currentText.length === currentMode.fullText.length && isKey('x')) {
         // FIXME: wait for the close sign.
         if (currentMode.nextText.length) {
             enterTextMode(currentMode.nextText, true);
@@ -1637,12 +1638,40 @@ function drawHud(r) {
     drawTextfield(''+player.coins, r, CW/2 - s/4*5, CH/2 - 20, true, 40);
 }
 
+let gp = null;
+
+// window.addEventListener("gamepadconnected", function(e) {
+//     gp = navigator.getGamepads()[e.gamepad.index];
+//     console.log('gamepad', gp);
+// });
+
+function rGP(key) {
+    let gp = navigator.getGamepads()[0];
+    if (!gp) {
+        return;
+    }
+    console.log('rgp', gp.buttons[0].pressed);
+    if (key === 'x') {
+        return gp.buttons[1].pressed;
+    }
+    if (key === 'z') {
+        return gp.buttons[0].pressed;
+    }
+    return darr.reduce((a, d,i) => a || (key === 'arrow'+d && dirs[i][0] === gp.axes[0] && dirs[i][1] === gp.axes[1]), 0);
+    console.log(gp);
+    return false;
+}
+
+function isKey(key) {
+    return CT[key] || rGP(key);
+}
+
 function updateKeys() {
-    if(CT.x) {
+    if(isKey('x')) {
         player.fire();
     }
-    player.isShieldActive = SHIELD_ACTIVE && CT.z;
-    ['left','right','down','up'].map((x,i) => { if(CT['arrow'+x]) player.move(dirs[i][0], dirs[i][1])});
+    player.isShieldActive = SHIELD_ACTIVE && isKey('z');
+    darr.map((x,i) => { if(isKey('arrow'+x)) player.move(dirs[i][0], dirs[i][1])});
 }
 
 
@@ -1679,7 +1708,7 @@ function draw() {
 
 draw();
 enterTextMode([
-    'Welcome to the cyberspace',
+    'Welcome to the cyberspace' + ' '.repeat(35) + '(PRESS X to continue)',
     'You must be the new one.',
     'There have been a blackout in your world and everything went offline',
     'Now you have to fight your way through the cyberspace to restore the connection!',
