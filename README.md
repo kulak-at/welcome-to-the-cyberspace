@@ -3,12 +3,16 @@
 
 This is a repository for "Welcome to the cyberspace" - the videogame created in 13kb for JS13kGame 2018 challenge.
 
+Google Chrome recommended (some minor audio artifacts on Firefox might happen).
+
 ## [Play the game](https://kulak-at.github.io/welcome-to-the-cyberspace)
 
 ## [Download Zip File (12695 bytes)](https://github.com/kulak-at/welcome-to-the-cyberspace/raw/master/build.zip)
 
 # Description
-Fight with the cybernetic hordes and restore the connection to the real world in this isometric retro-style cyberspace shooter. Can you beat them?
+Fight with the cybernetic hordes of enemies and restore the connection to the real world in this isometric retro-style cyberspace shooter. Can you beat them?
+
+Play with your keyboard or a controller!
 
 
 # Controls
