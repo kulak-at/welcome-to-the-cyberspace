@@ -364,7 +364,7 @@ const triggers = [
                 'It is the key to restore online connection',
                 'Do not ask me how it works, just trust me',
                 'Gather coins to unlock the way to freedom',
-                'But remember: The reacher you get, the stronger are the enemies!'
+                'But remember: The richer you get, the stronger are the enemies!'
             ])
         }
     },
@@ -417,8 +417,8 @@ const triggers = [
                 'You are getting rich quite fast',
                 'Actually, you are almost half way there',
                 'Gather 100 coins and you will set yourself free',
-                'But before that, the wild swarm can appear',
-                'It shoots in all directions. This is the deadliest enemy here.',
+                'But before that, the wild swarm of data can appear',
+                'It shoots in all directions with the corrupted data. This is the deadliest enemy here.',
                 'Watch out!'
             ]);
             ALF.push(Swarm);

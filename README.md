@@ -5,7 +5,7 @@ This is a repository for "Welcome to the cyberspace" - the videogame created in 
 
 ## [Play the game](https://kulak-at.github.io/welcome-to-the-cyberspace)
 
-ZIP FILE (12664 bytes)
+## [Download Zip File (12681 bytes)](https://github.com/kulak-at/welcome-to-the-cyberspace/raw/master/build.zip)
 
 # Description
 Fight with the cybernetic hordes and restore the connection to the real world in this isometric retro-style cyberspace shooter. Can you beat them?
